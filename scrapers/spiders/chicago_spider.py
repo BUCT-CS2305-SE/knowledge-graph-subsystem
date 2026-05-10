@@ -125,7 +125,7 @@ def fetch_chicago_data(target_count=2000):
 def main():
     init_env()
     # 为保证3个博物馆加起来达到5000，这里设置每家目标为1700
-    records = fetch_chicago_data(target_count=1700)
+    records = fetch_chicago_data(20)
     
     if records:
         df = pd.DataFrame(records)

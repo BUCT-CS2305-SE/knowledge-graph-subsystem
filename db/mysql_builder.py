@@ -27,9 +27,10 @@ def import_to_mysql():
     print("Connecting to MySQL...")
     engine = create_engine(f"mysql+pymysql://{DB_USER}:{DB_PASS}@{DB_HOST}:{DB_PORT}/{DB_NAME}?charset=utf8mb4")
     
+    from sqlalchemy import text
     # 建立业务系统的一些额外默认表 (如用户表)
-    with engine.connect() as conn:
-        conn.execute("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50), email VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);")
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE IF NOT EXISTS users (id INT AUTO_INCREMENT PRIMARY KEY, username VARCHAR(50), email VARCHAR(50), created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP);"))
     
     if not os.path.exists(DATA_DIR):
         print(f"Data directory {DATA_DIR} does not exist. Please run scraping and cleaning first.")

@@ -3,8 +3,8 @@ import re
 import pandas as pd
 
 # 配置常量
-DATA_DIR = os.path.join(os.path.dirname(__file__), "../data")
-CLEAN_DATA_DIR = os.path.join(os.path.dirname(__file__), "../data/cleaned")
+DATA_DIR = os.path.join(os.path.dirname(__file__), "data")
+CLEAN_DATA_DIR = os.path.join(os.path.dirname(__file__), "data/cleaned")
 
 def init_env():
     if not os.path.exists(CLEAN_DATA_DIR):
