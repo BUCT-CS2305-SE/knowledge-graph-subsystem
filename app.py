@@ -135,6 +135,33 @@ def list_artifacts(
     sort_by: str = Query("name", pattern="^(name|period|updated)$"),
     order: str = Query("asc", pattern="^(asc|desc)$")
 ):
+    """
+    获取文物列表（分页 + 基础筛选 + 简单排序）。
+
+    - 适用场景：列表页/瀑布流、后台浏览
+    - 过滤：按文物类型、博物馆、年代范围
+    - 排序：名称/年代/更新时间
+        - 返回：文物ID、名称、缩略图URL、年代、所属博物馆简要信息
+
+        示例请求：
+        - GET /api/artifacts?page=1&page_size=10&type=Ceramics&sort_by=period&order=desc
+
+        示例响应：
+        {
+            "page": 1,
+            "page_size": 10,
+            "total": 120,
+            "data": [
+                {
+                    "id": 123,
+                    "name": "Tea Bowl",
+                    "thumbnail_url": "/api/images/123/thumbnail?size=200x200",
+                    "period": "Qing Dynasty (1644-1911)",
+                    "museum": {"name": "Art Institute of Chicago", "location": "Chicago, USA"}
+                }
+            ]
+        }
+    """
     base_query = "SELECT * FROM artifacts WHERE 1=1"
     params = []
 
@@ -198,6 +225,29 @@ def list_artifacts(
 
 @app.get("/api/artifacts/{object_id}", summary="文物详情查询", tags=["MVP"])
 def get_artifact_detail(object_id: str):
+    """
+    获取单件文物详情。
+
+    - 返回：完整字段 + 图片URL + 关联实体列表（来自 Neo4j）
+        - 适用场景：详情页、问答溯源
+
+        示例请求：
+        - GET /api/artifacts/123
+
+        示例响应（部分字段）：
+        {
+            "id": 123,
+            "name": "Tea Bowl",
+            "period": "Qing Dynasty (1644-1911)",
+            "image_original_url": "/api/images/123/original",
+            "related_entities": [
+                {"relation": "STORED_IN", "name": "Art Institute of Chicago", "type": "Museum"}
+            ]
+        }
+
+        错误：
+        - 404 Artifact not found
+    """
     row = get_artifact_row(object_id)
     if not row:
         raise HTTPException(status_code=404, detail={"code": 404, "message": "Artifact not found"})
@@ -231,6 +281,26 @@ def search_artifacts(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=200)
 ):
+    """
+    关键字检索文物。
+
+    - 检索范围：文物名称、博物馆名称、描述文本
+    - 支持分页
+        - 返回：文物列表（同列表接口）
+
+        示例请求：
+        - GET /api/search?q=porcelain&page=1&page_size=20
+
+        示例响应：
+        {
+            "page": 1,
+            "page_size": 20,
+            "total": 42,
+            "data": [
+                {"id": 456, "name": "Tea Bowl", "thumbnail_url": "/api/images/456/thumbnail?size=200x200"}
+            ]
+        }
+    """
     like_value = f"%{q}%"
 
     conn = get_mysql_conn()
@@ -270,6 +340,17 @@ def resolve_image_path(object_id):
 
 @app.get("/api/images/{object_id}/original", summary="原始图片", tags=["MVP"])
 def get_image_original(object_id: str):
+    """
+    获取原始图片（二进制流）。
+
+    - 若本地无图，返回默认占位图
+    - 启用缓存控制
+
+    示例请求：
+    - GET /api/images/123/original
+
+    响应：image/jpeg 或 image/svg+xml
+    """
     image_path = resolve_image_path(object_id)
     headers = {"Cache-Control": "public, max-age=86400"}
     if image_path:
@@ -279,6 +360,18 @@ def get_image_original(object_id: str):
 
 @app.get("/api/images/{object_id}/thumbnail", summary="缩略图", tags=["MVP"])
 def get_image_thumbnail(object_id: str, size: str = Query("200x200")):
+    """
+    获取缩略图（二进制流）。
+
+    - size 参数仅用于客户端标记，MVP 返回同一图片
+    - 若本地无图，返回默认占位图
+    - 启用缓存控制
+
+    示例请求：
+    - GET /api/images/123/thumbnail?size=200x200
+
+    响应：image/jpeg 或 image/svg+xml
+    """
     image_path = resolve_image_path(object_id)
     headers = {"Cache-Control": "public, max-age=86400"}
     if image_path:
@@ -288,6 +381,22 @@ def get_image_thumbnail(object_id: str, size: str = Query("200x200")):
 
 @app.get("/api/artifacts/{object_id}/property", summary="基础属性查询", tags=["MVP"])
 def get_artifact_property(object_id: str, prop: str = Query(...)):
+    """
+    读取文物的单个属性值。
+
+    - 避免问答子系统直接写 Cypher
+    - prop 示例：museum, period, material, description, type, location
+
+    示例请求：
+    - GET /api/artifacts/123/property?prop=period
+
+    示例响应：
+    {"id": "123", "prop": "period", "value": "Qing Dynasty (1644-1911)"}
+
+    错误：
+    - 400 Unsupported property
+    - 404 Artifact not found
+    """
     allowed = {
         "museum": "museum",
         "period": "period",
@@ -316,6 +425,25 @@ def get_artifact_property(object_id: str, prop: str = Query(...)):
 
 @app.get("/api/stats/summary", summary="基础统计数据", tags=["MVP"])
 def get_stats_summary():
+    """
+    提供最小统计摘要。
+
+    - 文物总数
+    - 类型 Top5
+    - 博物馆 Top5
+        - 朝代/时期 Top5
+
+        示例请求：
+        - GET /api/stats/summary
+
+        示例响应：
+        {
+            "total_artifacts": 1000,
+            "top_types": [{"name": "Ceramics", "count": 320}],
+            "top_museums": [{"name": "Art Institute of Chicago", "count": 1000}],
+            "top_periods": [{"name": "Qing Dynasty (1644-1911)", "count": 420}]
+        }
+    """
     conn = get_mysql_conn()
     cursor = conn.cursor()
 
