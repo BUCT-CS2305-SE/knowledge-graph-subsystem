@@ -1,6 +1,7 @@
 import pandas as pd
 import os
 import json
+import pymysql
 from neo4j import GraphDatabase
 
 # Neo4j 数据库配置
@@ -8,8 +9,21 @@ NEO4J_URI = "bolt://localhost:7687"
 NEO4J_USER = "neo4j"
 NEO4J_PASS = "se_jk2305"
 
+# MySQL 数据库配置 (MVP 从 MySQL 读取)
+MYSQL_CONFIG = {
+    "host": "127.0.0.1",
+    "port": 3306,
+    "user": "root",
+    "password": "se_jk2305",
+    "database": "knowledge_graph_db",
+    "charset": "utf8mb4"
+}
+
 DATA_DIR = os.path.join(os.path.dirname(__file__), "../scrapers/data/cleaned")
 AUGMENTED_FILE = os.path.join(os.path.dirname(__file__), "../scrapers/data/augmented_entities.json")
+
+USE_MYSQL_SOURCE = True
+ENABLE_AUGMENTATION = False
 
 def create_constraints(session):
     """为 Neo4j 节点创建唯一约束，避免导入时产生重复节点并加快 MERGE 速度"""
@@ -47,6 +61,55 @@ def import_augmented_data(session):
         """
         session.run(cypher, name=period_name, uri=info.get('uri',''), desc=info.get('description',''), source=info.get('source',''))
     print("Augmented data loaded.")
+
+
+def load_records_from_mysql():
+    conn = pymysql.connect(**MYSQL_CONFIG, cursorclass=pymysql.cursors.DictCursor)
+    cursor = conn.cursor()
+    cursor.execute(
+        """
+        SELECT object_id, title, detail_url, museum, period, type, material
+        FROM artifacts
+        """
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+
+def import_records_to_graph(session, records):
+    print(f"Importing {len(records)} artifacts from MySQL into Graph...")
+    for row in records:
+        period = row.get("period") or "Unknown"
+        art_type = row.get("type") or "Unknown"
+        material = row.get("material") or "Unknown"
+        cypher_query = """
+            MERGE (a:Artifact {id: $a_id})
+            SET a.title = $a_title,
+                a.url = $detail_url
+
+            MERGE (m:Museum {name: $museum_name})
+            MERGE (a)-[:STORED_IN]->(m)
+
+            MERGE (p:Period {name: $period})
+            MERGE (a)-[:BELONGS_TO_PERIOD]->(p)
+
+            MERGE (t:Type {name: $art_type})
+            MERGE (a)-[:HAS_TYPE]->(t)
+
+            MERGE (mat:Material {name: $material})
+            MERGE (a)-[:MADE_OF]->(mat)
+        """
+        session.run(
+            cypher_query,
+            a_id=str(row.get("object_id", "")),
+            a_title=str(row.get("title", "")),
+            detail_url=str(row.get("detail_url", "")),
+            museum_name=str(row.get("museum", "Unknown")),
+            period=str(period),
+            art_type=str(art_type),
+            material=str(material)
+        )
 
 def import_csv_to_graph(session, csv_path):
     print(f"Importing core artifacts from {os.path.basename(csv_path)} into Graph...")
@@ -86,14 +149,18 @@ def main():
         driver = GraphDatabase.driver(NEO4J_URI, auth=(NEO4J_USER, NEO4J_PASS))
         with driver.session() as session:
             create_constraints(session)
-            
-            if os.path.exists(DATA_DIR):
-                csv_files = [f for f in os.listdir(DATA_DIR) if f.endswith('.csv')]
-                for file in csv_files:
-                    import_csv_to_graph(session, os.path.join(DATA_DIR, file))
-            
-            # 导入增强型数据 (Task 4 中的外挂知识)
-            import_augmented_data(session)
+
+            if USE_MYSQL_SOURCE:
+                records = load_records_from_mysql()
+                import_records_to_graph(session, records)
+            else:
+                if os.path.exists(DATA_DIR):
+                    csv_files = [f for f in os.listdir(DATA_DIR) if f.endswith('.csv')]
+                    for file in csv_files:
+                        import_csv_to_graph(session, os.path.join(DATA_DIR, file))
+
+            if ENABLE_AUGMENTATION:
+                import_augmented_data(session)
             
         driver.close()
         print("Neo4j database loading complete.")
