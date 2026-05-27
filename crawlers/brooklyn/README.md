@@ -22,24 +22,20 @@
 ## 快速开始
 
 ```bash
-# 1. 安装依赖
 pip install -r requirements.txt
 pip install playwright
 playwright install chromium
 
-# 2. 爬取所有博物馆
 python -m crawlers.brooklyn.main --museum all
 
-# 3. 爬取单个博物馆
 python -m crawlers.brooklyn.main --museum princeton
 python -m crawlers.brooklyn.main --museum chicago
 python -m crawlers.brooklyn.main --museum brooklyn_museum
 python -m crawlers.brooklyn.main --museum met_museum
 python -m crawlers.brooklyn.main --museum guimet_museum
-python -m crawlers.brooklyn.main --museum british_museum   # 需要 playwright
+python -m crawlers.brooklyn.main --museum british_museum  
 python -m crawlers.brooklyn.main --museum brooklyn_botanic
 
-# 4. 爬取同时下载原图
 python -m crawlers.brooklyn.main --museum princeton --download-images
 ```
 
