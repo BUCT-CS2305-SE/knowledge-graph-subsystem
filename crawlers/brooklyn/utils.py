@@ -22,7 +22,7 @@ def save_csv(items: Iterable[Dict[str, Any]], out_path: Path, fieldnames=None):
         # 从第一项推断列顺序
         fieldnames = list(items[0].keys()) if items else []
     with out_path.open("w", encoding="utf-8", newline='') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction='ignore')
         writer.writeheader()
         for it in items:
             writer.writerow({k: (v if v is not None else "") for k, v in it.items()})
