@@ -1,3 +1,5 @@
+import sys
+import re
 from pathlib import Path
 import argparse
 
@@ -7,6 +9,9 @@ from .spiders import (
     GuimetMuseumCrawler,
     BrooklynBotanicCrawler,
     BritishMuseumCrawler,
+    ArtInstituteChicagoCrawler,
+    PrincetonMuseumCrawler,
+    BrooklynArtMuseumCrawler,
 )
 from .utils import save_jsonl, save_csv, check_image_url, download_image
 
@@ -15,6 +20,9 @@ CRAWLERS = {
     "guimet_museum": GuimetMuseumCrawler,
     "brooklyn_botanic": BrooklynBotanicCrawler,
     "british_museum": BritishMuseumCrawler,
+    "chicago": ArtInstituteChicagoCrawler,
+    "princeton": PrincetonMuseumCrawler,
+    "brooklyn_museum": BrooklynArtMuseumCrawler,
 }
 
 
@@ -32,36 +40,63 @@ def run_crawler(museum_id: str, out_dir: Path, download_images: bool = False):
     items = list(crawler.crawl())
     print(f"  Got {len(items)} items")
 
-    # 可选：对每条记录执行图片有效性检测与下载
+    # Image validation & download — standardise image_path field
     images_dir = out_dir / "images" / museum_id
-    for i, it in enumerate(items):
-        img = it.get("image_url")
+    for it in items:
+        img = it.get("image_url", "")
         if img:
-            valid = check_image_url(img)
-            it["image_valid"] = valid
-            it["image_local"] = None
-            if download_images and valid:
-                ext = Path(img).suffix.split("?")[0] or ".jpg"
-                local_path = images_dir / f"{museum_id}_{i}{ext}"
-                ok = download_image(img, local_path)
-                it["image_local"] = str(local_path) if ok else None
+            if download_images:
+                valid = check_image_url(img)
+                it["_image_valid"] = valid
+                if valid:
+                    safe_oid = re.sub(r'[<>:"/\\|?*]', "_", str(it.get("object_id", "")))
+                    if not safe_oid:
+                        safe_oid = hashlib_md5(img.encode()).hexdigest()[:12]
+                    ext = Path(img).suffix.split("?")[0] or ".jpg"
+                    local_path = images_dir / f"{safe_oid}{ext}"
+                    ok = download_image(img, local_path)
+                    it["image_path"] = str(local_path) if ok else ""
+                else:
+                    it["image_path"] = ""
+            else:
+                it["_image_valid"] = ""
+                it["image_path"] = ""
         else:
-            it["image_valid"] = False
-            it["image_local"] = None
+            it["_image_valid"] = False
+            it["image_path"] = ""
 
     out_path_jsonl = out_dir / f"{museum_id}.jsonl"
     out_path_csv = out_dir / f"{museum_id}.csv"
     save_jsonl(items, out_path_jsonl)
-    # 动态推断 CSV 列名（此时 items 已有 image_valid/image_local）
-    fieldnames = list(items[0].keys()) if items else []
+
+    # CSV: standard 15 fields first, then extra (_-prefixed) fields
+    std_fields = [
+        "object_id", "title", "period", "type", "material", "description",
+        "dimensions", "museum", "location", "detail_url", "image_url",
+        "image_path", "credit_line", "accession_number", "crawl_date",
+    ]
+    if items:
+        extra_fields = [k for k in items[0] if k not in std_fields]
+        fieldnames = std_fields + extra_fields
+    else:
+        fieldnames = std_fields
     save_csv(items, out_path_csv, fieldnames=fieldnames)
 
     print(f"  Saved to {out_path_jsonl} and {out_path_csv}")
 
 
+def hashlib_md5(data: bytes) -> str:
+    import hashlib
+    return hashlib.md5(data).hexdigest()
+
+
 if __name__ == "__main__":
+    # Ensure UTF-8 output on Windows
+    if sys.platform == "win32":
+        sys.stdout.reconfigure(encoding="utf-8")
+
     parser = argparse.ArgumentParser(
-        description="Brooklyn museum crawlers — 中国流失文物数据爬取"
+        description="Brooklyn museum crawlers — 海外中国流失文物数据爬取"
     )
     parser.add_argument("--museum", default="all",
                         help="museum id to crawl (or 'all')")
