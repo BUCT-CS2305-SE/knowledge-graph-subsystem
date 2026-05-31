@@ -31,7 +31,7 @@ python mvp/main.py
 python db/neo4j_builder.py
 ```
 
-4. 启动服务
+4. 启动服务(need refactor)
 ```bash
 ssh root@47.95.4.147
 cd /root/knowledge-graph-subsystem
