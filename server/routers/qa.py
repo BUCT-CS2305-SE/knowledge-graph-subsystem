@@ -3,13 +3,15 @@
 为安全起见：
 - 仅接受白名单"问答模板"，不直接执行用户字符串
 - 所有模板均为 MATCH/RETURN 只读
+- ?lang=zh|en 切换 grounding 文本字段
 """
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from ..db import get_neo4j_driver, mysql_cursor
+from ..utils import localize_row, normalize_lang
 
 router = APIRouter(prefix="/api/qa", tags=["QA"])
 
@@ -35,7 +37,7 @@ TEMPLATES: dict[str, str] = {
     # 9. 同朝代文物
     "artifacts_of_period":
         "MATCH (a:Artifact)-[:BELONGS_TO_PERIOD]->(p:Period {name:$period}) "
-        "RETURN a.id AS id, a.title AS name LIMIT 50",
+        "RETURN a.id AS id, a.title AS name, a.title_en AS name_en LIMIT 50",
     # 收藏某类型最多的博物馆
     "top_museum_for_type":
         "MATCH (a:Artifact)-[:HAS_TYPE]->(:Type {name:$type}), "
@@ -76,17 +78,23 @@ def list_intents():
 
 
 @router.get("/grounding/{object_id}", summary="单文物完整事实包（RAG 上下文）")
-def grounding_context(object_id: str):
+def grounding_context(
+    object_id: str,
+    lang: str = Query("zh", pattern="^(zh|en)$"),
+):
     """
     返回知识图谱中关于该文物的全部事实 + 数据库描述文本。
     问答子系统拿到此包后塞给 LLM 作为上下文，避免幻觉。
+    支持 ?lang=zh|en 切换 title/description/period/type/material 等文本字段。
     """
+    lang = normalize_lang(lang)
     with mysql_cursor() as cur:
         cur.execute("SELECT * FROM artifacts WHERE object_id=%s", (object_id,))
         row = cur.fetchone()
     if not row:
         raise HTTPException(status_code=404, detail={
             "code": 404, "message": "Artifact not found"})
+    r = localize_row(row, lang)
 
     facts = []
     try:
@@ -94,27 +102,30 @@ def grounding_context(object_id: str):
         with driver.session() as s:
             cypher = (
                 "MATCH (a:Artifact {id:$id})-[r]->(n) "
-                "RETURN type(r) AS rel, n.name AS name, labels(n)[0] AS kind"
+                "RETURN type(r) AS rel, n.name AS name, "
+                "coalesce(n.name_en,'') AS name_en, labels(n)[0] AS kind"
             )
             for rec in s.run(cypher, id=object_id):
+                en = (rec["name_en"] or "").strip()
                 facts.append({
                     "predicate": rec["rel"],
-                    "object": rec["name"],
+                    "object": en if (lang == "en" and en) else rec["name"],
                     "object_type": rec["kind"],
                 })
     except Exception:
         facts = []
 
     return {
-        "id": row["object_id"],
-        "title": row.get("title", ""),
-        "description": row.get("description", ""),
-        "period": row.get("period", ""),
-        "type": row.get("type", ""),
-        "material": row.get("material", ""),
-        "dimensions": row.get("dimensions", ""),
-        "museum": row.get("museum", ""),
-        "location": row.get("location", ""),
-        "source_url": row.get("detail_url", ""),
+        "id": r["object_id"],
+        "title": r.get("title", ""),
+        "description": r.get("description", ""),
+        "period": r.get("period", ""),
+        "type": r.get("type", ""),
+        "material": r.get("material", ""),
+        "dimensions": r.get("dimensions", ""),
+        "museum": r.get("museum", ""),
+        "location": r.get("location", ""),
+        "source_url": r.get("detail_url", ""),
+        "lang": lang,
         "facts": facts,
     }

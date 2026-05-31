@@ -1,6 +1,6 @@
 # 知识图谱构建子系统 — 服务器部署指南
 
-本文档面向一台干净的 Linux 服务器（推荐 **Ubuntu 22.04 LTS**），从 `git clone` 开始，
+本文档面向一台干净的 Linux 服务器（已在 **Ubuntu 22.04 / 24.04 LTS** 验证），从 `git clone` 开始，
 完整覆盖系统依赖安装、MySQL / Neo4j 部署、Python 环境、数据初始化、API 启动、
 反向代理与定时增量任务。所有步骤已与本仓库的代码 / 默认配置对齐。
 
@@ -203,6 +203,21 @@ set -a && source .env && set +a
 crawl  →  clean  →  align  →  enrichment  →  incremental  →  mysql  →  neo4j
 ```
 
+### 7.0 输入数据源优先级（重要）
+
+仓库已自带双语清洗 + 对齐结果，所有 builder 自动按下表选择输入：
+
+| 优先级 | 路径 | 内容 | 备注 |
+|---|---|---|---|
+| 1 | `data_processing/alignment/by_dataset/` | 中文 + `*_original_en` 双语列 + `aligned_*` | MySQL builder 主输入 |
+| 2 | `data_processing/alignment/neo4j_import/` | 中文 nodes/relationships CSV | Neo4j builder 主输入 |
+| 3 | `data_processing/cleaning/cleaned/` | 双语清洗结果（无 aligned_*） | MySQL 兜底 |
+| 4 | `data_processing/alignment/`（旧 nodes_*.csv 等） | 旧版英文对齐 | Neo4j 兜底 |
+| 5 | `data_processing/cleaning/clean_*.csv` / `crawlers/data/raw/` | 清洗 / 原始 | 最低兜底 |
+
+> Neo4j builder 还会自动从 `by_dataset/clean_*.csv` 读 `*_original_en` 列，
+> 把 `Artifact.title_en/description_en` 和 `Period/Type/Material.name_en` 写入图谱。
+
 ### 7.1 首次完整初始化
 
 ```bash
@@ -224,6 +239,22 @@ python3 pipeline/run_pipeline.py \
     --skip-crawl --skip-clean --skip-align --skip-incremental
 ```
 
+> **enrichment 卡住怎么办？**
+> `enrichment` 步骤会逐个查询 Wikipedia 给 Period / Museum 补背景描述。
+> 如果服务器**无法访问 wikipedia.org**（如部分 IDC 默认外网不通），
+> 它会一个接一个超时，看起来像"卡住"。两种解决办法：
+>
+> 1. **直接跳过**（推荐 — 仓库已自带 `data_update/enrichment/augmented_entities.json`，不影响 API）：
+>    ```bash
+>    python3 pipeline/run_pipeline.py --skip-enrichment ...
+>    ```
+> 2. **降低连续失败阈值**：脚本内置网络探测，连续 5 次失败后自动放弃后续；
+>    可用环境变量调整：
+>    ```bash
+>    KG_ENRICH_MAX_FAIL=3 python3 data_update/enrichment/enrichment.py --limit 20
+>    ```
+> enrichment 在 pipeline 中标记为非必需，失败/超时**不会阻塞** mysql/neo4j 构建。
+
 ### 7.3 仅重建数据库（场景：换库 / 回滚）
 
 ```bash
@@ -234,7 +265,78 @@ python3 db/mysql_builder.py
 python3 db/neo4j_builder.py --reset
 ```
 
-### 7.4 单步运行（调试用）
+### 7.4 从英文单语升级到中英双语（已有部署）
+
+> 适用场景：服务器之前已用 **旧英文版本** 部署完毕（artifacts 表无 `*_en` / `phash` 列、Neo4j 节点无 `name_en`），
+> 现在需要应用最新双语数据。**整个流程零停机** — 加列幂等、节点 MERGE 增量。
+
+```bash
+# 1) 拉新代码（新增 *_en 列、双语 builder、双语路由）
+cd ~/se_apps/knowledge-graph-subsystem
+git fetch && git pull
+
+# 2) 上传新双语数据（本地 → 服务器）
+#    本机执行：把 data_processing/ 整目录 rsync 上去
+#    rsync -avz --delete data_processing/ \
+#        root@<server>:/root/se_apps/knowledge-graph-subsystem/data_processing/
+
+# 3) 验证服务器侧的输入路径
+ls data_processing/alignment/by_dataset/clean_*.csv | head     # 应见 7 个馆
+ls data_processing/alignment/neo4j_import/nodes_*.csv | head   # 应见 5 个 nodes_*.csv
+head -1 data_processing/alignment/by_dataset/clean_met.csv | tr ',' '\n' | grep _original_en
+#    ^ 应该列出 title_original_en / period_original_en / ... 多行
+
+# 4) 重建 MySQL（自动 ALTER ADD COLUMN：title_en / period_en / ... / phash 列）
+source venv/bin/activate
+python3 db/mysql_builder.py
+# [mysql] inputs:
+#   - data_processing/alignment/by_dataset/clean_british_museum.csv  ← 路径变为 by_dataset
+#   ...
+
+# 5) 重建 Neo4j（清空 + 写 title_en / name_en）
+python3 db/neo4j_builder.py --reset
+# [neo4j] ... | en_lookup: artifacts=N period=M type=K material=L
+#                                ^ 这行有数字才说明双语注入成功
+
+# 6) 重建 pHash（先前因缺列报错，现在补列后跑通）
+python3 db/phash_indexer.py --rebuild
+
+# 7) （可选）CLIP 索引（首跑很慢，下载 ~600MB 模型 + GPU 推理）
+python3 db/clip_indexer.py --rebuild
+
+# 8) 重启 API 服务（让新路由的 lang 参数生效）
+sudo systemctl restart kg-api
+sleep 2
+curl http://127.0.0.1:8000/api/health
+```
+
+**冒烟测试（验证双语接口已就绪）**：
+
+```bash
+HOST=http://127.0.0.1:8000
+ID=$(curl -s "$HOST/api/artifacts?page=1&page_size=1" | python3 -c "import sys,json; print(json.load(sys.stdin)['items'][0]['id'])")
+
+# 中文
+curl -s "$HOST/api/artifacts/$ID?lang=zh" | python3 -m json.tool | head -20
+# 英文
+curl -s "$HOST/api/artifacts/$ID?lang=en" | python3 -m json.tool | head -20
+# 双语 LIKE
+curl -s "$HOST/api/search?keyword=Qing&lang=en"  | python3 -m json.tool | head
+curl -s "$HOST/api/search?keyword=清&lang=zh"     | python3 -m json.tool | head
+# 详情 i18n 双语对照
+curl -s "$HOST/api/artifacts/$ID" | python3 -c "import sys,json; print(json.load(sys.stdin).get('i18n'))"
+```
+
+**关键预期值**：
+- `[mysql] upserted=...` 行不再报错；`SHOW COLUMNS FROM artifacts` 应见 `title_en` / ... / `phash`
+- `[neo4j] en_lookup: artifacts=5000+ period=400+` 才算双语注入成功
+- `/api/artifacts/{id}?lang=en` 中 `name` 字段应为英文，且响应含 `i18n` 子对象
+- `/api/image-search/status` 中 `clip_index_size > 0`（如已跑步骤 7）
+
+**回滚**：双语化是**纯加列**，不删数据；如需回滚仅需回滚 git 即可，旧数据保留。
+
+
+### 7.5 单步运行（调试用）
 
 ```bash
 python3 pipeline/run_pipeline.py --only mysql_build neo4j_build
@@ -503,8 +605,11 @@ sudo systemctl daemon-reload
 | 目录 / 文件 | 作用 | target.md 章节 |
 |---|---|---|
 | [crawlers/](file:///opt/kg/knowledge-graph-subsystem/crawlers) | 爬虫（Princeton / Chicago / Brooklyn Museum 等 7 馆） | (1) 数据爬取 |
-| [data_processing/cleaning/](file:///opt/kg/knowledge-graph-subsystem/data_processing/cleaning) | 字段标准化 / 去重 / 图片有效性 | (2) 数据清洗 |
-| [data_processing/alignment/](file:///opt/kg/knowledge-graph-subsystem/data_processing/alignment) | 实体对齐 + 三元组 CSV | (3) 数据建模 / (5) 实体对齐 |
+| [data_processing/cleaning/](file:///opt/kg/knowledge-graph-subsystem/data_processing/cleaning) | 字段标准化 / 去重 / 图片有效性 + 百度翻译 | (2) 数据清洗 |
+| [data_processing/cleaning/cleaned/](file:///opt/kg/knowledge-graph-subsystem/data_processing/cleaning/cleaned) | 双语清洗结果（含 `*_original_en` 列） | (2) |
+| [data_processing/alignment/](file:///opt/kg/knowledge-graph-subsystem/data_processing/alignment) | 实体对齐脚本 + 三元组 CSV | (3) 数据建模 / (5) 实体对齐 |
+| [data_processing/alignment/by_dataset/](file:///opt/kg/knowledge-graph-subsystem/data_processing/alignment/by_dataset) | 各馆双语对齐 CSV（MySQL builder 主输入） | (3) |
+| [data_processing/alignment/neo4j_import/](file:///opt/kg/knowledge-graph-subsystem/data_processing/alignment/neo4j_import) | Neo4j 节点 / 关系 CSV（builder 主输入） | (3)+(6) |
 | [data_update/enrichment/](file:///opt/kg/knowledge-graph-subsystem/data_update/enrichment) | Wikipedia 实体补充 | (4) 数据补充 |
 | [data_update/incremental/](file:///opt/kg/knowledge-graph-subsystem/data_update/incremental) | 增量爬取 + 状态管理 | (7) 增量更新 |
 | [db/mysql_builder.py](file:///opt/kg/knowledge-graph-subsystem/db/mysql_builder.py) | 业务表 `artifacts` 入库 | (6) 数据存储 |
@@ -516,33 +621,45 @@ sudo systemctl daemon-reload
 
 ## 附录 C：API 一览（供其它 4 个子系统对接）
 
-| 路径 | 方法 | 用途 | 主要使用方 |
-|---|---|---|---|
-| `/api/health` | GET | 健康探针 | 后台监控 |
-| `/api/artifacts` | GET | 列表查询（分页 / 筛选 / 排序） | Web、移动端 |
-| `/api/artifacts/{id}` | GET | 详情（含 Neo4j 关联实体） | Web、移动端 |
-| `/api/artifacts/{id}/property` | GET | 单属性读（避免 QA 子系统直写 Cypher） | 问答 |
-| `/api/artifacts/{id}/related` | GET | 相关推荐（同朝代+同类型+视觉） | Web、移动端 |
-| `/api/artifacts/compare` | POST | 文物对比（2~3 件） | Web |
-| `/api/search` | GET | 全文检索 | Web、移动端 |
-| `/api/search/advanced` | GET | 多字段高级查询（含年代区间） | Web |
-| `/api/search/export` | GET | 查询结果导出 CSV/JSON | Web |
-| `/api/filters` | GET | 筛选枚举（下拉框选项） | Web、后台 |
-| `/api/images/{id}/original` | GET | 原图（无图回退 SVG 占位） | Web、移动端 |
-| `/api/images/{id}/thumbnail` | GET | 缩略图 | Web、移动端 |
-| `/api/image-search` | POST | 以图搜图（CLIP 优先，pHash 兜底；`model=auto\|clip\|phash`） | 移动端、Web |
-| `/api/image-search/text` | POST | 以文搜图（仅 CLIP，需先跑离线索引） | 移动端、Web |
-| `/api/image-search/by-id/{id}` | GET | 视觉相似（基于已有文物） | Web、移动端 |
-| `/api/image-search/status` | GET | 探针：`clip_available` / `clip_index_size` / `fallback` | 后台、调试 |
-| `/api/graph/neighbors/{id}` | GET | 邻居子图（力导向图） | Web 可视化 |
-| `/api/graph/timeline` | GET | 时间轴数据 | Web 可视化 |
-| `/api/graph/geo` | GET | 地理分布数据 | Web 可视化 |
-| `/api/graph/path` | GET | 两实体最短路径 | 问答多跳 |
-| `/api/qa/intents` | GET | 列出问答意图 | 问答 |
-| `/api/qa/query` | POST | 模板化 Cypher 查询（白名单） | 问答 |
-| `/api/qa/grounding/{id}` | GET | 单文物事实包（RAG 上下文） | 问答 |
-| `/api/stats/summary` | GET | 基础统计（Top5） | 后台、Web |
-| `/api/stats/distribution` | GET | 多维分布（饼图/柱状图） | 后台 |
-| `/api/stats/growth` | GET | 增长曲线 | 后台 |
-| `/api/admin/artifacts` | POST/PUT/DELETE | 后台 CRUD（X-Admin-Token） | 后台 |
-| `/api/admin/consistency-check` | GET | MySQL ↔ Neo4j 一致性 | 后台 |
+> **双语支持**：所有"读"接口均支持 `?lang=zh|en` 查询参数（默认 `zh`）。
+> 数据层会按 lang 切换 `title/period/type/material/description/credit_line` 等字段；
+> 当英文列为空时自动回退中文。详情接口额外返回 `i18n` 双语对照对象。
+
+| 路径 | 方法 | lang 支持 | 用途 | 主要使用方 |
+|---|---|---|---|---|
+| `/api/health` | GET | — | 健康探针 | 后台监控 |
+| `/api/artifacts` | GET | ✅ | 列表查询（分页 / 筛选 / 排序，type 同时匹配 type_en） | Web、移动端 |
+| `/api/artifacts/{id}` | GET | ✅ | 详情（含 Neo4j 关联实体 + `i18n` 双语对照） | Web、移动端 |
+| `/api/artifacts/{id}/property` | GET | ✅ | 单属性读（按 lang 切中/英列） | 问答 |
+| `/api/artifacts/{id}/related` | GET | ✅ | 相关推荐（同朝代/同类型双语匹配 + 视觉） | Web、移动端 |
+| `/api/artifacts/compare` | POST | ✅ | 文物对比（2~3 件） | Web |
+| `/api/search` | GET | ✅ | 全文检索（中英文列同时 LIKE） | Web、移动端 |
+| `/api/search/advanced` | GET | ✅ | 多字段高级查询（每个条件双语 LIKE） | Web |
+| `/api/search/export` | GET | ✅ | 查询结果导出 CSV/JSON | Web |
+| `/api/filters` | GET | ✅ | 筛选枚举（按 lang 返回中/英枚举值） | Web、后台 |
+| `/api/images/{id}/original` | GET | — | 原图（无图回退 SVG 占位） | Web、移动端 |
+| `/api/images/{id}/thumbnail` | GET | — | 缩略图 | Web、移动端 |
+| `/api/image-search` | POST | ✅ | 以图搜图（CLIP 优先，pHash 兜底；`model=auto\|clip\|phash`） | 移动端、Web |
+| `/api/image-search/text` | POST | ✅ | 以文搜图（仅 CLIP，需先跑离线索引） | 移动端、Web |
+| `/api/image-search/by-id/{id}` | GET | ✅ | 视觉相似（基于已有文物） | Web、移动端 |
+| `/api/image-search/status` | GET | — | 探针：`clip_available` / `clip_index_size` / `fallback` | 后台、调试 |
+| `/api/graph/neighbors/{id}` | GET | ✅ | 邻居子图（节点 name 按 lang 切 name/name_en） | Web 可视化 |
+| `/api/graph/timeline` | GET | ✅ | 时间轴数据（period 按 lang 切） | Web 可视化 |
+| `/api/graph/geo` | GET | — | 地理分布数据 | Web 可视化 |
+| `/api/graph/path` | GET | ✅ | 两实体最短路径（节点同时返回 name 和 name_en） | 问答多跳 |
+| `/api/qa/intents` | GET | — | 列出问答意图 | 问答 |
+| `/api/qa/query` | POST | ✅ | 模板化 Cypher 查询（artifacts_of_period 返回 name+name_en） | 问答 |
+| `/api/qa/grounding/{id}` | GET | ✅ | 单文物事实包（RAG 上下文，按 lang 切 object 文本） | 问答 |
+| `/api/stats/summary` | GET | — | 基础统计（Top5） | 后台、Web |
+| `/api/stats/distribution` | GET | — | 多维分布（饼图/柱状图） | 后台 |
+| `/api/stats/growth` | GET | — | 增长曲线 | 后台 |
+| `/api/admin/artifacts` | POST/PUT/DELETE | — | 后台 CRUD（X-Admin-Token） | 后台 |
+| `/api/admin/consistency-check` | GET | — | MySQL ↔ Neo4j 一致性 | 后台 |
+
+> **使用示例**：
+> - 中文列表：`GET /api/artifacts?page=1&page_size=20`
+> - 英文列表：`GET /api/artifacts?page=1&page_size=20&lang=en`
+> - 双语全文检索：`GET /api/search?keyword=Qing&lang=en`（"Qing" 命中 `title_en`）
+>   或 `GET /api/search?keyword=清&lang=zh`（"清" 命中 `title`）
+> - 详情双语对照：`GET /api/artifacts/{id}` 响应中的 `i18n` 字段同时含
+>   `title_zh / title_en / period_zh / period_en / type_zh / type_en / material_zh / material_en`

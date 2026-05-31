@@ -5,6 +5,7 @@
 - model=clip       ：强制 CLIP，缺依赖时 503
 - model=phash      ：强制 pHash
 - /text 端点：仅 CLIP（语义跨模态），失败 503
+- 所有响应支持 ?lang=zh|en 切换 name/period 等文本字段
 """
 
 from __future__ import annotations
@@ -17,24 +18,32 @@ from ..utils import (
     build_thumbnail_url,
     compute_phash,
     hamming64,
+    localize_row,
+    normalize_lang,
 )
 
 router = APIRouter(prefix="/api/image-search", tags=["ImageSearch"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
 
+_SELECT_COLS = (
+    "object_id, title, title_en, period, period_en, "
+    "museum, location, phash"
+)
+
 
 # ---------- 共享：MySQL 行 → 列表项 ----------
 
-def _row_to_item(row: dict, score: float) -> dict:
+def _row_to_item(row: dict, score: float, lang: str = "zh") -> dict:
+    r = localize_row(row, lang)
     return {
-        "id": row["object_id"],
-        "name": row.get("title", ""),
-        "thumbnail_url": build_thumbnail_url(row["object_id"]),
-        "period": row.get("period", ""),
+        "id": r["object_id"],
+        "name": r.get("title", ""),
+        "thumbnail_url": build_thumbnail_url(r["object_id"]),
+        "period": r.get("period", ""),
         "museum": {
-            "name": row.get("museum", ""),
-            "location": row.get("location", ""),
+            "name": r.get("museum", ""),
+            "location": r.get("location", ""),
         },
         "score": round(score, 4),
     }
@@ -46,8 +55,7 @@ def _fetch_rows_by_ids(ids: list[str]) -> dict[str, dict]:
     placeholders = ",".join(["%s"] * len(ids))
     with mysql_cursor() as cursor:
         cursor.execute(
-            f"SELECT object_id, title, period, museum, location "
-            f"FROM artifacts WHERE object_id IN ({placeholders})",
+            f"SELECT {_SELECT_COLS} FROM artifacts WHERE object_id IN ({placeholders})",
             tuple(ids),
         )
         return {r["object_id"]: r for r in cursor.fetchall()}
@@ -56,18 +64,17 @@ def _fetch_rows_by_ids(ids: list[str]) -> dict[str, dict]:
 # ---------- pHash 兜底 ----------
 
 def _phash_search(query_hash: str, top_k: int, threshold: int,
-                  exclude_id: str | None = None) -> list[dict]:
+                  lang: str = "zh", exclude_id: str | None = None) -> list[dict]:
     with mysql_cursor() as cursor:
         if exclude_id:
             cursor.execute(
-                "SELECT object_id, title, period, museum, location, phash "
-                "FROM artifacts WHERE phash <> '' AND object_id <> %s",
+                f"SELECT {_SELECT_COLS} FROM artifacts "
+                f"WHERE phash <> '' AND object_id <> %s",
                 (exclude_id,),
             )
         else:
             cursor.execute(
-                "SELECT object_id, title, period, museum, location, phash "
-                "FROM artifacts WHERE phash <> ''"
+                f"SELECT {_SELECT_COLS} FROM artifacts WHERE phash <> ''"
             )
         rows = cursor.fetchall()
 
@@ -78,7 +85,7 @@ def _phash_search(query_hash: str, top_k: int, threshold: int,
             scored.append((d, row))
     scored.sort(key=lambda x: x[0])
     return [
-        {**_row_to_item(r, 1 - d / 64.0), "hamming": d}
+        {**_row_to_item(r, 1 - d / 64.0, lang), "hamming": d}
         for d, r in scored[:top_k]
     ]
 
@@ -101,7 +108,9 @@ async def search_by_image(
     threshold: int = Query(20, ge=0, le=64,
                            description="pHash 模式下 Hamming 距离阈值"),
     model: str = Query("auto", pattern="^(auto|clip|phash)$"),
+    lang: str = Query("zh", pattern="^(zh|en)$"),
 ):
+    lang = normalize_lang(lang)
     raw = await file.read()
     if len(raw) > MAX_UPLOAD_BYTES:
         raise HTTPException(status_code=413, detail={
@@ -130,11 +139,12 @@ async def search_by_image(
             if hits:
                 rows = _fetch_rows_by_ids([oid for oid, _ in hits])
                 data = [
-                    _row_to_item(rows[oid], score)
+                    _row_to_item(rows[oid], score, lang)
                     for oid, score in hits if oid in rows
                 ]
                 return {
                     "engine": "clip",
+                    "lang": lang,
                     "matched": len(data),
                     "data": data,
                 }
@@ -145,9 +155,10 @@ async def search_by_image(
     if not query_hash:
         raise HTTPException(status_code=400, detail={
             "code": 400, "message": "Cannot decode image"})
-    data = _phash_search(query_hash, top_k, threshold)
+    data = _phash_search(query_hash, top_k, threshold, lang)
     return {
         "engine": "phash",
+        "lang": lang,
         "query_phash": query_hash,
         "matched": len(data),
         "data": data,
@@ -158,7 +169,9 @@ async def search_by_image(
 def search_by_text(
     text: str = Form(..., min_length=1),
     top_k: int = Query(20, ge=1, le=100),
+    lang: str = Query("zh", pattern="^(zh|en)$"),
 ):
+    lang = normalize_lang(lang)
     if not (vector_search.is_available() and vector_search.index_size() > 0):
         raise HTTPException(status_code=503, detail={
             "code": 503,
@@ -172,10 +185,11 @@ def search_by_text(
     hits = vector_search.search_vector(vec, top_k=top_k)
     rows = _fetch_rows_by_ids([oid for oid, _ in hits])
     data = [
-        _row_to_item(rows[oid], score)
+        _row_to_item(rows[oid], score, lang)
         for oid, score in hits if oid in rows
     ]
-    return {"engine": "clip", "query_text": text, "matched": len(data), "data": data}
+    return {"engine": "clip", "lang": lang, "query_text": text,
+            "matched": len(data), "data": data}
 
 
 @router.get("/by-id/{object_id}", summary="基于已有文物 id 找视觉相似")
@@ -183,8 +197,10 @@ def search_by_artifact_id(
     object_id: str,
     top_k: int = Query(10, ge=1, le=50),
     model: str = Query("auto", pattern="^(auto|clip|phash)$"),
+    lang: str = Query("zh", pattern="^(zh|en)$"),
 ):
     """基于已有文物找视觉/语义相似品。优先 CLIP，pHash 兜底。"""
+    lang = normalize_lang(lang)
     use_clip = (
         model == "clip"
         or (model == "auto"
@@ -211,8 +227,9 @@ def search_by_artifact_id(
                     rows = _fetch_rows_by_ids([oid for oid, _ in hits])
                     return {
                         "engine": "clip",
+                        "lang": lang,
                         "data": [
-                            _row_to_item(rows[oid], s)
+                            _row_to_item(rows[oid], s, lang)
                             for oid, s in hits if oid in rows
                         ],
                     }
@@ -230,5 +247,5 @@ def search_by_artifact_id(
             raise HTTPException(status_code=404, detail={
                 "code": 404, "message": "Artifact has no phash"})
     data = _phash_search(row["phash"], top_k, threshold=64,
-                        exclude_id=object_id)
-    return {"engine": "phash", "data": data}
+                        lang=lang, exclude_id=object_id)
+    return {"engine": "phash", "lang": lang, "data": data}

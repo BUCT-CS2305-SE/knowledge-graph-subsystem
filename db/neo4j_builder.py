@@ -14,18 +14,15 @@ Neo4j 知识图谱构建器：把 alignment 输出与 enrichment 结果写入 Ne
     (Artifact)-[:HAS_TYPE]->(Type)
     (Artifact)-[:MADE_OF]->(Material)
 
-数据来源：
-    必需：
-        data_processing/alignment/nodes_artworks.csv
-        data_processing/alignment/nodes_museums.csv
-        data_processing/alignment/nodes_periods.csv
-        data_processing/alignment/nodes_types.csv
-        data_processing/alignment/nodes_materials.csv
-        data_processing/alignment/relationships_artwork_museum.csv
-        data_processing/alignment/relationships_artwork_period.csv
-        data_processing/alignment/relationships_artwork_type.csv
-        data_processing/alignment/relationships_artwork_material.csv
-    可选：
+数据来源（按优先级）：
+    必需 (任选其一)：
+        data_processing/alignment/neo4j_import/...        （中文翻译 + 双语对齐版，优先）
+        data_processing/alignment/                        （旧英文对齐版，回退）
+    双语字段补全（可选，自动检测）：
+        data_processing/alignment/by_dataset/clean_*.csv
+            提供 *_original_en 列 → 给 Artifact.title_en/description_en
+            和 Period/Type/Material.name_en 赋值
+    enrichment（可选）：
         data_update/enrichment/augmented_entities.json
         ／ enrichment/augmented_entities.json （兼容旧路径）
 
@@ -54,7 +51,24 @@ except ImportError:  # pragma: no cover
     raise
 
 ROOT = Path(__file__).resolve().parents[1]
-ALIGN_DIR = ROOT / "data_processing" / "alignment"
+
+# 输入数据源优先级：
+#   1) data_processing/alignment/neo4j_import/  （中文翻译版 + 双语对齐，优先）
+#   2) data_processing/alignment/                （旧版英文对齐，兜底）
+ALIGN_DIR_CANDIDATES = [
+    ROOT / "data_processing" / "alignment" / "neo4j_import",
+    ROOT / "data_processing" / "alignment",
+]
+
+
+def discover_align_dir() -> Path:
+    for d in ALIGN_DIR_CANDIDATES:
+        if d.exists() and (d / "nodes_artworks.csv").exists():
+            return d
+    return ALIGN_DIR_CANDIDATES[-1]
+
+
+ALIGN_DIR = discover_align_dir()
 
 ENRICH_CANDIDATES = [
     ROOT / "data_update" / "enrichment" / "augmented_entities.json",
@@ -87,6 +101,80 @@ def chunked(seq: list, size: int) -> Iterable[list]:
         yield seq[i:i + size]
 
 
+# ---------------------- 双语映射构建 ----------------------
+#
+# neo4j_import/ 下的 nodes/relationships CSV 全部是中文（aligned_*），
+# 缺乏英文字段。我们从 data_processing/alignment/by_dataset/clean_*.csv
+# （含 *_original_en 列）补出：
+#   - 每个 object_id 的 title_en / description_en
+#   - 每个 中文 period/type/material 名 → 英文名 的众数映射
+#
+# 这样无论 graph.py / qa.py 用 lang=en 还是中文，都拿得到英文。
+
+BY_DATASET_CANDIDATES = [
+    ROOT / "data_processing" / "alignment" / "by_dataset",
+]
+
+
+def _read_csv_safe(path: Path) -> list[dict]:
+    if not path.exists():
+        return []
+    with path.open(encoding="utf-8-sig", newline="") as f:
+        return list(csv.DictReader(f))
+
+
+def build_bilingual_lookup() -> tuple[dict, dict, dict, dict]:
+    """返回 (artifact_en, period_zh2en, type_zh2en, material_zh2en)。
+
+    artifact_en[object_id] = {title_en, description_en}
+    period_zh2en[中文名]   = 英文名（按出现次数取众数）
+    """
+    artifact_en: dict[str, dict] = {}
+    period_count: dict[str, dict[str, int]] = {}
+    type_count: dict[str, dict[str, int]] = {}
+    material_count: dict[str, dict[str, int]] = {}
+
+    def _bump(d, zh, en):
+        if not zh or not en:
+            return
+        d.setdefault(zh, {}).setdefault(en, 0)
+        d[zh][en] += 1
+
+    for d in BY_DATASET_CANDIDATES:
+        if not d.exists():
+            continue
+        for fp in d.glob("clean_*.csv"):
+            for row in _read_csv_safe(fp):
+                oid = (row.get("object_id") or "").strip()
+                if oid:
+                    artifact_en[oid] = {
+                        "title_en": (row.get("title_original_en") or "").strip(),
+                        "description_en": (row.get("description_original_en") or "").strip(),
+                    }
+                # period: 中文 = standardized_period / period; 英文 = *_original_en
+                _bump(period_count,
+                      (row.get("aligned_period") or row.get("standardized_period")
+                       or row.get("period") or "").strip(),
+                      (row.get("standardized_period_original_en")
+                       or row.get("period_original_en") or "").strip())
+                _bump(type_count,
+                      (row.get("aligned_type") or row.get("standardized_type")
+                       or row.get("type") or "").strip(),
+                      (row.get("standardized_type_original_en")
+                       or row.get("type_original_en") or "").strip())
+                _bump(material_count,
+                      (row.get("aligned_material") or row.get("standardized_material")
+                       or row.get("material") or "").strip(),
+                      (row.get("standardized_material_original_en")
+                       or row.get("material_original_en") or "").strip())
+
+    def _mode(d):
+        return {zh: max(en_map.items(), key=lambda kv: kv[1])[0]
+                for zh, en_map in d.items() if en_map}
+
+    return artifact_en, _mode(period_count), _mode(type_count), _mode(material_count)
+
+
 # ---------------------- 节点 / 关系写入 ----------------------
 
 CONSTRAINTS = [
@@ -116,7 +204,9 @@ def merge_artifacts(session, rows: list[dict], batch: int = 500) -> int:
         "UNWIND $rows AS r "
         "MERGE (a:Artifact {id: r.id}) "
         "SET a.title = r.title, "
+        "    a.title_en = r.title_en, "
         "    a.description = r.description, "
+        "    a.description_en = r.description_en, "
         "    a.dimensions = r.dimensions, "
         "    a.accession_number = r.accession_number, "
         "    a.detail_url = r.detail_url, "
@@ -131,7 +221,13 @@ def merge_artifacts(session, rows: list[dict], batch: int = 500) -> int:
         payload.append({
             "id": oid,
             "title": r.get("title", "") or "",
+            "title_en": (r.get("title_en")
+                         or r.get("title_original_en")
+                         or "") or "",
             "description": r.get("description", "") or "",
+            "description_en": (r.get("description_en")
+                               or r.get("description_original_en")
+                               or "") or "",
             "dimensions": r.get("dimensions", "") or "",
             "accession_number": r.get("accession_number", "") or "",
             "detail_url": r.get("detail_url", "") or "",
@@ -148,10 +244,10 @@ def merge_artifacts(session, rows: list[dict], batch: int = 500) -> int:
 def merge_simple_nodes(session, label: str, rows: list[dict],
                        extra_props: list[str] | None = None) -> int:
     extra_props = extra_props or []
-    set_clause = ""
-    if extra_props:
-        set_clause = ", ".join(f"n.{p} = r.{p}" for p in extra_props)
-        set_clause = " SET " + set_clause
+    # 始终接受可选 name_en 列
+    all_props = list(extra_props) + ["name_en"]
+    set_clause = ", ".join(f"n.{p} = r.{p}" for p in all_props)
+    set_clause = " SET " + set_clause
     cypher = (
         f"UNWIND $rows AS r MERGE (n:{label} {{name: r.name}})"
         f"{set_clause}"
@@ -164,6 +260,7 @@ def merge_simple_nodes(session, label: str, rows: list[dict],
         item = {"name": name}
         for p in extra_props:
             item[p] = (r.get(p) or "").strip()
+        item["name_en"] = (r.get("name_en") or "").strip()
         payload.append(item)
     total = 0
     for chunk in chunked(payload, 500):
@@ -276,8 +373,37 @@ def main(argv: list[str] | None = None) -> int:
     rel_type = read_csv(ALIGN_DIR / "relationships_artwork_type.csv")
     rel_material = read_csv(ALIGN_DIR / "relationships_artwork_material.csv")
 
+    # 注入双语字段（从 by_dataset/clean_*.csv 推导）
+    artifact_en, period_zh2en, type_zh2en, material_zh2en = build_bilingual_lookup()
+    if artifact_en:
+        for r in artworks:
+            oid = (r.get("object_id") or "").strip()
+            en = artifact_en.get(oid)
+            if en:
+                r.setdefault("title_en", en.get("title_en", ""))
+                r.setdefault("description_en", en.get("description_en", ""))
+    for r in periods:
+        nm = (r.get("name") or "").strip()
+        if nm and nm in period_zh2en:
+            r["name_en"] = period_zh2en[nm]
+    for r in types:
+        nm = (r.get("name") or "").strip()
+        if nm and nm in type_zh2en:
+            r["name_en"] = type_zh2en[nm]
+    for r in materials:
+        nm = (r.get("name") or "").strip()
+        if nm and nm in material_zh2en:
+            r["name_en"] = material_zh2en[nm]
+    # 博物馆名本身就是英文，name_en = name
+    for r in museums:
+        nm = (r.get("name") or "").strip()
+        if nm:
+            r.setdefault("name_en", nm)
+
     print(f"[neo4j] artifacts={len(artworks)} museums={len(museums)} "
-          f"periods={len(periods)} types={len(types)} materials={len(materials)}")
+          f"periods={len(periods)} types={len(types)} materials={len(materials)} "
+          f"| en_lookup: artifacts={len(artifact_en)} "
+          f"period={len(period_zh2en)} type={len(type_zh2en)} material={len(material_zh2en)}")
 
     driver = get_driver()
     try:

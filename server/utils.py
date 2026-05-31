@@ -1,4 +1,4 @@
-"""通用工具：年代解析、URL 构造、占位 SVG、图片路径解析、Neo4j 关联查询、pHash。"""
+"""通用工具：年代解析、URL 构造、占位 SVG、图片路径解析、Neo4j 关联查询、pHash、双语本地化。"""
 
 from __future__ import annotations
 
@@ -18,6 +18,41 @@ DEFAULT_SVG = (
     "font-family='Arial, sans-serif' font-size='24' fill='#666'>No Image</text>"
     "</svg>"
 )
+
+# zh ↔ en 的字段镜像表（key 为响应字段名 / DB 列名；values=英文列名）
+LANG_FIELDS = {
+    "title": "title_en",
+    "period": "period_en",
+    "type": "type_en",
+    "material": "material_en",
+    "description": "description_en",
+    "credit_line": "credit_line_en",
+}
+
+
+def normalize_lang(lang: Optional[str]) -> str:
+    """统一为 'zh' / 'en'；其它一律视为 zh（默认中文）。"""
+    if isinstance(lang, str) and lang.lower() in ("en", "english", "en-us", "en_us"):
+        return "en"
+    return "zh"
+
+
+def localize_row(row: dict, lang: str) -> dict:
+    """根据 lang 将中文主列 / 英文列对调；空英文列自动回退到中文。
+
+    返回新 dict（浅拷贝），不修改入参。
+    """
+    if not row:
+        return row
+    out = dict(row)
+    if normalize_lang(lang) != "en":
+        return out
+    for zh_key, en_key in LANG_FIELDS.items():
+        en_val = (out.get(en_key) or "").strip() if isinstance(out.get(en_key), str) else out.get(en_key)
+        if en_val:
+            out[zh_key] = en_val
+        # 否则保留 zh 主列内容（回退）
+    return out
 
 
 def parse_period_year(period_value: Optional[str]) -> Optional[int]:
@@ -86,16 +121,18 @@ def get_related_entities(object_id: str) -> list[dict]:
         return []
 
 
-def build_artifact_list_item(row: dict) -> dict:
+def build_artifact_list_item(row: dict, lang: str = "zh") -> dict:
+    r = localize_row(row, lang)
     return {
-        "id": row.get("object_id"),
-        "name": row.get("title", ""),
-        "thumbnail_url": build_thumbnail_url(row.get("object_id")),
-        "period": row.get("period", ""),
+        "id": r.get("object_id"),
+        "name": r.get("title", ""),
+        "thumbnail_url": build_thumbnail_url(r.get("object_id")),
+        "period": r.get("period", ""),
         "museum": {
-            "name": row.get("museum", ""),
-            "location": row.get("location", ""),
+            "name": r.get("museum", ""),
+            "location": r.get("location", ""),
         },
+        "lang": normalize_lang(lang),
     }
 
 

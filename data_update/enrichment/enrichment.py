@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
 import sys
 import time
@@ -43,7 +44,24 @@ from urllib.parse import quote
 from urllib.request import Request, urlopen
 
 ROOT = Path(__file__).resolve().parents[2]
-ALIGN_DIR = ROOT / "data_processing" / "alignment"
+
+# 输入路径优先级：
+#   1) data_processing/alignment/neo4j_import/   （中文 + 双语版本，优先）
+#   2) data_processing/alignment/                 （旧英文版本，兜底）
+_ALIGN_CANDIDATES = [
+    ROOT / "data_processing" / "alignment" / "neo4j_import",
+    ROOT / "data_processing" / "alignment",
+]
+
+
+def _discover_align_dir() -> Path:
+    for d in _ALIGN_CANDIDATES:
+        if (d / "nodes_periods.csv").exists():
+            return d
+    return _ALIGN_CANDIDATES[-1]
+
+
+ALIGN_DIR = _discover_align_dir()
 OUT_DIR = ROOT / "data_update" / "enrichment"
 
 URI_PREFIX = "http://kg.bjtu5.org"
@@ -79,6 +97,23 @@ def http_get_json(url: str, timeout: int = 8) -> dict | None:
         return None
 
 
+# 网络可用性探测：连续 N 次 wiki 失败就提前退出，避免 pipeline 卡 30+ 分钟。
+_FAIL_STREAK = {"count": 0}
+_MAX_FAIL_STREAK = int(os.environ.get("KG_ENRICH_MAX_FAIL", "5"))
+
+
+def _record_fail():
+    _FAIL_STREAK["count"] += 1
+
+
+def _record_ok():
+    _FAIL_STREAK["count"] = 0
+
+
+def _network_dead() -> bool:
+    return _FAIL_STREAK["count"] >= _MAX_FAIL_STREAK
+
+
 def core_name(name: str) -> str:
     """去掉括号中的年份/限定词，得到可在 Wikipedia 上命中的核心名。
 
@@ -97,11 +132,14 @@ def _query_wiki(title: str) -> tuple[str, str, str] | None:
     data = http_get_json(WIKI_REST.format(title=encoded))
     if data and data.get("extract"):
         url = data.get("content_urls", {}).get("desktop", {}).get("page", "")
+        _record_ok()
         return data["extract"].strip(), "Wikipedia (en)", url
     data = http_get_json(WIKI_ZH_REST.format(title=encoded))
     if data and data.get("extract"):
         url = data.get("content_urls", {}).get("desktop", {}).get("page", "")
+        _record_ok()
         return data["extract"].strip(), "Wikipedia (zh)", url
+    _record_fail()
     return None
 
 
@@ -176,11 +214,20 @@ def enrich(entities: Iterable[dict], delay: float = 0.4) -> list[dict]:
     today = date.today().isoformat()
     results: list[dict] = []
     cache: dict[str, tuple[str, str, str] | None] = {}
+    aborted = False
     for ent in entities:
+        if _network_dead():
+            print(f"  [abort] connectivity to wikipedia seems lost "
+                  f"({_FAIL_STREAK['count']} consecutive failures); "
+                  f"remaining entities will be left empty.",
+                  flush=True)
+            aborted = True
         kind, name = ent["kind"], ent["name"]
-        # 命中缓存的回退路径（base name）就不再额外 sleep
         already_cached = (name in cache) or (core_name(name) in cache)
-        info = fetch_wikipedia_summary(name, cache=cache)
+        if aborted:
+            info = None
+        else:
+            info = fetch_wikipedia_summary(name, cache=cache)
         if not info:
             results.append({
                 "uri": make_uri(kind, name),
@@ -191,7 +238,7 @@ def enrich(entities: Iterable[dict], delay: float = 0.4) -> list[dict]:
                 "source_url": "",
                 "enrich_date": today,
             })
-            print(f"  [miss] {kind}: {name}")
+            print(f"  [miss] {kind}: {name}", flush=True)
         else:
             desc, source, source_url = info
             results.append({
@@ -203,8 +250,8 @@ def enrich(entities: Iterable[dict], delay: float = 0.4) -> list[dict]:
                 "source_url": source_url,
                 "enrich_date": today,
             })
-            print(f"  [ok]   {kind}: {name} -> {source}")
-        if not already_cached:
+            print(f"  [ok]   {kind}: {name} -> {source}", flush=True)
+        if not already_cached and not aborted:
             time.sleep(delay)
     return results
 
