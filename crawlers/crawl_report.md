@@ -1,8 +1,8 @@
 # 爬取数据报告
 
 > 生成时间: 2026-05-27
-> 爬虫目录: `crawlers/brooklyn/`
-> 输出目录: `crawlers/brooklyn/data/raw/`
+> 爬虫目录: `crawlers/`
+> 输出目录: `crawlers/data/raw/`
 
 ---
 

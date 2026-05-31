@@ -1,0 +1,9 @@
+# 知识图谱构建子系统 — 完整依赖（含 CLIP）
+# 在 requirements.txt 之外，可选安装 CLIP + FAISS 启用语义检索
+
+-r requirements.txt
+
+torch>=2.1
+torchvision>=0.16
+transformers>=4.40
+faiss-cpu>=1.7

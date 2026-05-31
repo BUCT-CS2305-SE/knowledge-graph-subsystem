@@ -6,7 +6,7 @@
     2. 提供基于 (museum, object_id) 与内容 hash 的弱增量过滤工具，
        让爬虫脚本仅写入新增或更新过的记录，避免全量重复下载。
     3. 与本仓库已有的爬虫输出 CSV 配合使用：
-           crawlers/brooklyn/data/raw/<museum>.csv
+           crawlers/data/raw/<museum>.csv
 
 主要 API：
     - IncrementalState : 加载 / 写回 sync_state.json
@@ -35,7 +35,7 @@ from pathlib import Path
 from typing import Iterable
 
 ROOT = Path(__file__).resolve().parents[2]
-RAW_DIR = ROOT / "crawlers" / "brooklyn" / "data" / "raw"
+RAW_DIR = ROOT / "crawlers" / "data" / "raw"
 STATE_PATH = Path(__file__).resolve().parent / "sync_state.json"
 
 # 与 docs/project_specification.md 第 7.1 节保持一致的 15 列

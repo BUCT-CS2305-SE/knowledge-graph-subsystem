@@ -1,1 +1,32 @@
-venv
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.pytest_cache/
+
+# 虚拟环境
+venv/
+.venv/
+env/
+
+# 环境变量
+.env
+server/.env
+
+# 日志 / 状态
+pipeline/pipeline.log
+pipeline/sync_state.json
+data_update/incremental/sync_state.json
+data_update/incremental/delta/
+
+# 数据补充缓存（体积大，不建议入库）
+data_update/enrichment/augmented_entities.json
+data_update/enrichment/augmented_entities.csv
+
+# 编辑器
+.idea/
+.vscode/
+*.swp
+.DS_Store
