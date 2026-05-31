@@ -20,6 +20,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 
 import requests
+import urllib3
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 ROOT = Path(__file__).resolve().parents[1]
 CSV_DIR = ROOT / "data_processing" / "alignment" / "by_dataset"
@@ -27,6 +29,25 @@ OUT_ROOT = ROOT / "crawlers" / "data" / "raw" / "images"
 
 UA = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
       "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36")
+
+# 各站点定制 Referer（防盗链）
+REFERER_MAP = {
+    "artic.edu":            "https://www.artic.edu/",
+    "britishmuseum.org":    "https://www.britishmuseum.org/",
+    "brooklynmuseum.org":   "https://www.brooklynmuseum.org/",
+    "metmuseum.org":        "https://www.metmuseum.org/",
+    "artmuseum.princeton.edu": "https://artmuseum.princeton.edu/",
+    "guimet.fr":            "https://www.guimet.fr/",
+    "bbg.org":              "https://www.bbg.org/",
+}
+
+
+def pick_referer(url: str) -> str:
+    low = url.lower()
+    for host, ref in REFERER_MAP.items():
+        if host in low:
+            return ref
+    return "https://www.google.com/"
 
 CSV_TO_MUSEUM = {
     "clean_british_museum.csv":   "british_museum",
@@ -64,13 +85,24 @@ def download(url: str, out_path: Path, timeout: int = 30, debug: bool = False) -
         "User-Agent": UA,
         "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8",
         "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8",
-        "Referer": "https://www.google.com/",
+        "Accept-Encoding": "gzip, deflate, br",
+        "Referer": pick_referer(url),
+        "Sec-Fetch-Dest": "image",
+        "Sec-Fetch-Mode": "no-cors",
+        "Sec-Fetch-Site": "same-site",
+        "sec-ch-ua": '"Not_A Brand";v="8", "Chromium";v="120", "Google Chrome";v="120"',
+        "sec-ch-ua-mobile": "?0",
+        "sec-ch-ua-platform": '"Windows"',
+        "DNT": "1",
+        "Connection": "keep-alive",
     }
     real_url = normalize_url(url)
+    # SSL 验证：british_museum 等馆有自签证书问题，全局关闭验证
+    verify_ssl = False
     try:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         r = requests.get(real_url, timeout=timeout, headers=headers, stream=True,
-                         allow_redirects=True)
+                         allow_redirects=True, verify=verify_ssl)
         if r.status_code != 200:
             if debug:
                 print(f"  [debug] {r.status_code} {real_url}", flush=True)
@@ -82,7 +114,7 @@ def download(url: str, out_path: Path, timeout: int = 30, debug: bool = False) -
             if "/iiif/" in real_url.lower() and "/full/max/" in real_url:
                 alt_url = real_url.replace("/full/max/", "/full/full/")
                 r = requests.get(alt_url, timeout=timeout, headers=headers,
-                                 stream=True, allow_redirects=True)
+                                 stream=True, allow_redirects=True, verify=verify_ssl)
                 ct = (r.headers.get("Content-Type") or "").lower()
                 if r.status_code != 200 or "html" in ct or "json" in ct:
                     if debug:
