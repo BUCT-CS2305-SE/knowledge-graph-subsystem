@@ -24,7 +24,8 @@ data_update/incremental/delta/
 # 数据补充缓存（体积大，不建议入库）
 data_update/enrichment/augmented_entities.json
 data_update/enrichment/augmented_entities.csv
-
+# 图片
+images/
 # 编辑器
 .idea/
 .vscode/
