@@ -89,6 +89,18 @@ def build(batch: int, limit: int | None) -> None:
     ids: list[str] = []
     miss = fail = 0
 
+    def _to_tensor(features):
+        # Handle different transformers outputs across versions.
+        if hasattr(features, "image_embeds"):
+            return features.image_embeds
+        if hasattr(features, "pooler_output"):
+            return features.pooler_output
+        if hasattr(features, "last_hidden_state"):
+            return features.last_hidden_state[:, 0, :]
+        if isinstance(features, (tuple, list)) and features:
+            return features[0]
+        return features
+
     def flush_batch(imgs, batch_ids):
         nonlocal fail
         if not imgs:
@@ -96,7 +108,7 @@ def build(batch: int, limit: int | None) -> None:
         try:
             inputs = processor(images=imgs, return_tensors="pt").to(device)
             with torch.no_grad():
-                feats = model.get_image_features(**inputs)
+                feats = _to_tensor(model.get_image_features(**inputs))
                 feats = feats / feats.norm(dim=-1, keepdim=True)
             arr = feats.cpu().numpy().astype("float32")
             for v, oid in zip(arr, batch_ids):

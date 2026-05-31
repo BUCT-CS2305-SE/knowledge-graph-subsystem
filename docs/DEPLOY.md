@@ -21,6 +21,55 @@
 
 ---
 
+## 0.5 WSL2 最快部署（Windows 本地）
+
+适用场景：Windows 开发机，接受 WSL2；已有 Windows venv 也不冲突，但 **WSL2 里必须新建 venv**。
+
+### 0.5.1 安装 WSL2 + Ubuntu
+
+以管理员 PowerShell 运行：
+
+```powershell
+wsl --install -d Ubuntu-22.04
+```
+
+安装完成后重启，打开 Ubuntu 终端设置用户名/密码。
+
+### 0.5.2 放置仓库（建议放在 WSL 的 ext4 内）
+
+```bash
+sudo mkdir -p /opt/kg
+sudo chown -R "$USER":"$USER" /opt/kg
+cd /opt/kg
+git clone <你的仓库地址> knowledge-graph-subsystem
+cd knowledge-graph-subsystem
+```
+
+> 不建议直接在 `/mnt/c` 下跑数据库与大量 CSV 处理，IO 会慢。
+
+### 0.5.3 在 WSL 内安装依赖并建 venv
+
+```bash
+sudo apt update && sudo apt -y upgrade
+sudo apt -y install \
+  git curl wget vim \
+  build-essential pkg-config \
+  python3 python3-pip python3-venv \
+  libssl-dev libffi-dev \
+  ca-certificates gnupg lsb-release
+
+python3 -m venv venv
+source venv/bin/activate
+pip install --upgrade pip
+pip install -r requirements.txt
+```
+
+### 0.5.4 继续按本文档执行
+
+从 **第 3 章（MySQL）** 开始即可，Neo4j / API / pipeline 等步骤全部相同。
+
+---
+
 ## 1. 系统准备
 
 ### 1.1 更新系统并创建工作目录
@@ -122,7 +171,7 @@ sudo systemctl enable --now neo4j
 ```bash
 # 5.x 默认初始密码 neo4j，首次登录强制改密
 sudo cypher-shell -u neo4j -p neo4j \
-  "ALTER USER neo4j SET PASSWORD '一个强密码';"
+  "ALTER USER neo4j SET PASSWORD 'se_cs2305';"
 ```
 
 ### 4.4（可选）允许局域网访问
@@ -515,6 +564,10 @@ pip install -r requirements-clip.txt        # 含 torch / torchvision / transfor
 ```
 
 > 若服务器有 GPU，可改装 `torch` 的 CUDA 版本，索引器会自动走 GPU；否则纯 CPU 即可（首次推理会下载 ~600MB 的 CLIP-ViT-B/32 权重到 `~/.cache/huggingface`）。
+> pip uninstall -y torch torchvision torchaudio
+> pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121
+> pip install -r requirements-clip.txt
+
 
 ### 12.5.2 配置环境变量（可选）
 

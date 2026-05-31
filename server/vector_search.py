@@ -73,6 +73,19 @@ def _ensure_model():
         _processor = CLIPProcessor.from_pretrained(CLIP_MODEL_NAME)
 
 
+    def _to_tensor(features):
+        # Handle different transformers outputs across versions.
+        if hasattr(features, "image_embeds"):
+            return features.image_embeds
+        if hasattr(features, "pooler_output"):
+            return features.pooler_output
+        if hasattr(features, "last_hidden_state"):
+            return features.last_hidden_state[:, 0, :]
+        if isinstance(features, (tuple, list)) and features:
+            return features[0]
+        return features
+
+
 def encode_image_bytes(raw: bytes) -> Optional[list[float]]:
     """把图片二进制编码为 512 维向量（已 L2 归一化）。失败返回 None。"""
     if not is_available():
@@ -86,7 +99,7 @@ def encode_image_bytes(raw: bytes) -> Optional[list[float]]:
         img = Image.open(io.BytesIO(raw)).convert("RGB")
         inputs = _processor(images=img, return_tensors="pt")
         with _torch.no_grad():
-            feats = _model.get_image_features(**inputs)
+            feats = _to_tensor(_model.get_image_features(**inputs))
             feats = feats / feats.norm(dim=-1, keepdim=True)
         return feats[0].cpu().numpy().tolist()
     except Exception:
@@ -101,7 +114,7 @@ def encode_text(text: str) -> Optional[list[float]]:
         _ensure_model()
         inputs = _processor(text=[text], return_tensors="pt", padding=True)
         with _torch.no_grad():
-            feats = _model.get_text_features(**inputs)
+            feats = _to_tensor(_model.get_text_features(**inputs))
             feats = feats / feats.norm(dim=-1, keepdim=True)
         return feats[0].cpu().numpy().tolist()
     except Exception:
