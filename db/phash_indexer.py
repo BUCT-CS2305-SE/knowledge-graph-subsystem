@@ -70,7 +70,8 @@ def build(rebuild: bool, limit: int | None) -> None:
             try:
                 with open(abs_path, "rb") as f:
                     h = compute_phash(f.read())
-            except Exception:
+            except Exception as e:
+                print(f"  [{i}/{total}] FAIL {rel}: {type(e).__name__}: {e}", flush=True)
                 h = None
             if not h:
                 fail += 1
@@ -81,9 +82,9 @@ def build(rebuild: bool, limit: int | None) -> None:
                     (h, row["object_id"]),
                 )
             ok += 1
-            if i % 200 == 0:
+            if i % 50 == 0:
                 conn.commit()
-                print(f"  [{i}/{total}] ok={ok} miss={miss} fail={fail}")
+                print(f"  [{i}/{total}] ok={ok} miss={miss} fail={fail}", flush=True)
         conn.commit()
         print(f"DONE: total={total} ok={ok} miss={miss} fail={fail}")
     finally:
