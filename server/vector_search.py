@@ -73,17 +73,17 @@ def _ensure_model():
         _processor = CLIPProcessor.from_pretrained(CLIP_MODEL_NAME)
 
 
-    def _to_tensor(features):
-        # Handle different transformers outputs across versions.
-        if hasattr(features, "image_embeds"):
-            return features.image_embeds
-        if hasattr(features, "pooler_output"):
-            return features.pooler_output
-        if hasattr(features, "last_hidden_state"):
-            return features.last_hidden_state[:, 0, :]
-        if isinstance(features, (tuple, list)) and features:
-            return features[0]
-        return features
+def _to_tensor(features):
+    # Handle different transformers outputs across versions.
+    if hasattr(features, "image_embeds"):
+        return features.image_embeds
+    if hasattr(features, "pooler_output"):
+        return features.pooler_output
+    if hasattr(features, "last_hidden_state"):
+        return features.last_hidden_state[:, 0, :]
+    if isinstance(features, (tuple, list)) and features:
+        return features[0]
+    return features
 
 
 def encode_image_bytes(raw: bytes) -> Optional[list[float]]:
