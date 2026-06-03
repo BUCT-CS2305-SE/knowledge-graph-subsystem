@@ -101,7 +101,7 @@ def status():
     }
 
 
-@router.post("", summary="以图搜图（上传图片，CLIP 优先 / pHash 兜底）")
+@router.post("", summary="以图搜图（上传图片，CLIP 优先 / pHash FALLBACK）")
 async def search_by_image(
     file: UploadFile = File(...),
     top_k: int = Query(20, ge=1, le=100),
@@ -165,7 +165,7 @@ async def search_by_image(
     }
 
 
-@router.post("/text", summary="以文搜图（CLIP 跨模态，需要安装 torch）")
+@router.post("/text", summary="以文搜图（CLIP 跨模态，记得先用/status探测CLIP可用与否）")
 def search_by_text(
     text: str = Form(..., min_length=1),
     top_k: int = Query(20, ge=1, le=100),

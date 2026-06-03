@@ -32,7 +32,7 @@ class AppConfig:
     description: str = (
         "提供基于 MySQL 和 Neo4j 的文物检索、关系查询、以及沉浸式主题视图接口。"
     )
-    version: str = "1.0.0"
+    version: str = "2.0.3"
     # 项目根：用于解析 image_path 等相对路径
     project_root: str = _env(
         "KG_PROJECT_ROOT",
