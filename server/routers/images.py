@@ -7,7 +7,7 @@ from fastapi.responses import FileResponse, Response
 
 from ..utils import DEFAULT_SVG, resolve_image_path
 
-router = APIRouter(prefix="/api/images", tags=["MVP"])
+router = APIRouter(prefix="/api/images", tags=["基础功能接口"])
 
 _CACHE_HEADERS = {"Cache-Control": "public, max-age=86400"}
 
@@ -25,7 +25,7 @@ def get_image_original(object_id: str):
 
 @router.get("/{object_id}/thumbnail", summary="缩略图")
 def get_image_thumbnail(object_id: str, size: str = Query("200x200")):
-    """获取缩略图（MVP 与原图同源，size 仅作客户端标记）。"""
+    """获取缩略图（基础功能接口 与原图同源，size 仅作客户端标记）。"""
     image_path = resolve_image_path(object_id)
     if image_path:
         return FileResponse(image_path, headers=_CACHE_HEADERS)

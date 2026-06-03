@@ -18,7 +18,7 @@ from ..utils import (
     parse_period_year,
 )
 
-router = APIRouter(prefix="/api", tags=["MVP"])
+router = APIRouter(prefix="/api", tags=["基础功能接口"])
 
 
 @router.get("/artifacts", summary="文物列表查询")

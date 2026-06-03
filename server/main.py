@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
             content={"code": exc.status_code, "message": str(exc.detail)},
         )
 
-    # MVP（基础检索 + 详情）
+    # 基础功能接口（基础检索 + 详情）
     app.include_router(artifacts.router)
     app.include_router(search.router)
     app.include_router(images.router)
