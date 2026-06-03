@@ -1,0 +1,31 @@
+# 知识图谱构建子系统 — 依赖清单
+# 涵盖：爬虫 / 清洗 / 对齐 / 数据补充 / 增量 / 入库 / API 服务 / 以图搜图
+
+# Web API
+fastapi>=0.110
+uvicorn[standard]>=0.27
+python-multipart>=0.0.9   # FastAPI UploadFile 必需
+
+# 数据库
+pymysql>=1.1
+neo4j>=5.18
+
+# 数据处理
+pandas>=1.5
+numpy>=1.23
+chardet>=5.0
+
+# 网络 / 爬虫
+requests>=2.31
+urllib3>=1.26
+beautifulsoup4>=4.12
+lxml>=4.9
+
+# 以图搜图（pHash 兜底，零模型依赖）
+Pillow>=10.0
+
+# 以图/以文搜图（CLIP + FAISS，可选；不安装则自动 fallback 到 pHash）
+# torch>=2.1
+# torchvision>=0.16
+# transformers>=4.40
+# faiss-cpu>=1.7
