@@ -1,6 +1,7 @@
 # QUICK START
 
 ```
+pip install -r requirements.txt
 wsl
 cd /opt/se_apps/knowledge-graph-subsystem
 source venv/bin/activate
