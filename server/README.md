@@ -79,6 +79,18 @@ KG_API_RELOAD=1 python3 -m server
 | GET | `/api/images/{id}/thumbnail?size=` | 缩略图 |
 | GET | `/api/stats/summary` | 基础统计 |
 
+## 鉴权说明
+
+所有 `/api/*` 接口都需要 admin-management-system 签发的 JWT。
+普通用户与管理员都可访问公开查询接口；后台管理接口要求管理员类型。
+请求需带：
+
+```
+Authorization: Bearer <token>
+```
+
+如需临时关闭鉴权，设置 `KG_ADMIN_AUTH_ENABLED=0`。
+
 ## 错误格式
 
 统一返回：

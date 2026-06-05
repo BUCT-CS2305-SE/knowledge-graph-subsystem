@@ -7,6 +7,7 @@ from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
+from .auth import verify_token
 from .config import app_config
 from .db import close_neo4j_driver
 from .routers import (
@@ -37,6 +38,26 @@ def create_app() -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    @app.middleware("http")
+    async def auth_middleware(request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api/") and path != "/api/health":
+            try:
+                verify_token(
+                    request.headers.get("Authorization"),
+                    request.headers.get("X-Token"),
+                    allowed_user_types=["ADMIN", "PLATFORM_USER"],
+                )
+            except FastAPIHTTPException as exc:
+                detail = exc.detail
+                if isinstance(detail, dict) and "code" in detail and "message" in detail:
+                    return JSONResponse(status_code=exc.status_code, content=detail)
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"code": exc.status_code, "message": str(detail)},
+                )
+        return await call_next(request)
 
     @app.exception_handler(FastAPIHTTPException)
     async def http_exception_handler(

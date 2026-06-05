@@ -5,6 +5,7 @@
 fastapi>=0.110
 uvicorn[standard]>=0.27
 python-multipart>=0.0.9   # FastAPI UploadFile 必需
+PyJWT>=2.8
 
 # 数据库
 pymysql>=1.1

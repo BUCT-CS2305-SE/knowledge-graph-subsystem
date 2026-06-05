@@ -1,29 +1,22 @@
 """后台管理接口：artifact CRUD + 数据一致性检查。
 
-⚠️ 这些接口应在反向代理层加 Token 鉴权（KG_ADMIN_TOKEN）。
+使用 admin 侧签发的 JWT 进行鉴权（KG_JWT_SECRET / KG_JWT_ISSUER）。
 """
 
 from __future__ import annotations
 
-import os
 from typing import Optional
 
 from fastapi import APIRouter, Header, HTTPException
 
+from ..auth import verify_token
 from ..db import get_neo4j_driver, mysql_cursor
 
 router = APIRouter(prefix="/api/admin", tags=["Admin"])
 
-ADMIN_TOKEN = os.environ.get("KG_ADMIN_TOKEN", "")
 
-
-def _check_token(x_admin_token: Optional[str]) -> None:
-    if not ADMIN_TOKEN:
-        raise HTTPException(status_code=503, detail={
-            "code": 503, "message": "Admin disabled (KG_ADMIN_TOKEN not set)"})
-    if x_admin_token != ADMIN_TOKEN:
-        raise HTTPException(status_code=401, detail={
-            "code": 401, "message": "Unauthorized"})
+def _check_token(authorization: Optional[str], x_token: Optional[str]) -> None:
+    verify_token(authorization, x_token, allowed_user_types=["ADMIN"])
 
 
 WRITABLE_COLS = (
@@ -35,8 +28,12 @@ WRITABLE_COLS = (
 
 
 @router.post("/artifacts", summary="新增文物")
-def admin_create(payload: dict, x_admin_token: Optional[str] = Header(None)):
-    _check_token(x_admin_token)
+def admin_create(
+    payload: dict,
+    authorization: Optional[str] = Header(None),
+    x_token: Optional[str] = Header(None),
+):
+    _check_token(authorization, x_token)
     object_id = payload.get("object_id")
     if not object_id:
         raise HTTPException(status_code=400, detail={
@@ -59,9 +56,10 @@ def admin_create(payload: dict, x_admin_token: Optional[str] = Header(None)):
 def admin_update(
     object_id: str,
     payload: dict,
-    x_admin_token: Optional[str] = Header(None),
+    authorization: Optional[str] = Header(None),
+    x_token: Optional[str] = Header(None),
 ):
-    _check_token(x_admin_token)
+    _check_token(authorization, x_token)
     updates = {k: v for k, v in payload.items() if k in WRITABLE_COLS}
     if not updates:
         raise HTTPException(status_code=400, detail={
@@ -79,8 +77,12 @@ def admin_update(
 
 
 @router.delete("/artifacts/{object_id}", summary="删除文物")
-def admin_delete(object_id: str, x_admin_token: Optional[str] = Header(None)):
-    _check_token(x_admin_token)
+def admin_delete(
+    object_id: str,
+    authorization: Optional[str] = Header(None),
+    x_token: Optional[str] = Header(None),
+):
+    _check_token(authorization, x_token)
     with mysql_cursor() as cur:
         cur.execute("DELETE FROM artifacts WHERE object_id=%s", (object_id,))
         cur.connection.commit()
@@ -99,8 +101,11 @@ def admin_delete(object_id: str, x_admin_token: Optional[str] = Header(None)):
 
 
 @router.get("/consistency-check", summary="MySQL ↔ Neo4j 数据一致性检查")
-def consistency_check(x_admin_token: Optional[str] = Header(None)):
-    _check_token(x_admin_token)
+def consistency_check(
+    authorization: Optional[str] = Header(None),
+    x_token: Optional[str] = Header(None),
+):
+    _check_token(authorization, x_token)
     with mysql_cursor() as cur:
         cur.execute("SELECT COUNT(*) AS c FROM artifacts")
         sql_count = cur.fetchone()["c"]
