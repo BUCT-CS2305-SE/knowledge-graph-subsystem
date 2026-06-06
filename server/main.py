@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
 from .auth import verify_token
@@ -89,6 +90,35 @@ def create_app() -> FastAPI:
     @app.get("/api/health", tags=["Meta"])
     def health():
         return {"status": "ok", "version": app_config.version}
+
+    # 让 /docs 显示 Authorize 按钮，方便联调时把 admin 签发的 JWT 粘进去
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        schema.setdefault("components", {})["securitySchemes"] = {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "在 Value 中粘贴 admin 登录返回的 token（无需带 'Bearer ' 前缀）",
+            }
+        }
+        for path, methods in schema.get("paths", {}).items():
+            if path == "/api/health":
+                continue
+            for op in methods.values():
+                if isinstance(op, dict):
+                    op.setdefault("security", [{"BearerAuth": []}])
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = custom_openapi
 
     @app.on_event("shutdown")
     def _on_shutdown() -> None:
