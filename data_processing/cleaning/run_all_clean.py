@@ -5,6 +5,8 @@
 import os
 import sys
 
+import pandas as pd
+
 # 添加当前目录到路径
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
@@ -19,15 +21,22 @@ from clean_british_museum import clean_british_museum
 # 获取当前脚本所在目录
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 输入文件目录: cleaning/wait_to_clean
-INPUT_DIR = os.path.join(CURRENT_DIR, 'wait_to_clean')
+# 仓库根目录
+ROOT_DIR = os.path.abspath(os.path.join(CURRENT_DIR, '..', '..'))
+
+# 输入文件目录: 优先使用 cleaning/wait_to_clean, 不存在或为空则回退到爬虫原始数据目录
+_WAIT_DIR = os.path.join(CURRENT_DIR, 'wait_to_clean')
+_has_wait_csv = os.path.isdir(_WAIT_DIR) and any(
+    f.endswith('.csv') for f in os.listdir(_WAIT_DIR)
+)
+INPUT_DIR = _WAIT_DIR if _has_wait_csv else os.path.join(
+    ROOT_DIR, 'crawlers', 'data', 'raw')
 
 # 输出文件目录: cleaning/cleaned
 OUTPUT_DIR = os.path.join(CURRENT_DIR, 'cleaned')
 
 # 确保输出目录存在
 os.makedirs(OUTPUT_DIR, exist_ok=True)
-os.makedirs(INPUT_DIR, exist_ok=True)
 
 FILES = {
     'princeton': {
@@ -91,11 +100,19 @@ def main():
         
         try:
             print(f"\n处理 {name}...")
-            df, completeness = config['clean_func'](input_file, output_file)
+            # 各清洗函数返回 (df, completeness) 或 (df, completeness, duplicates)
+            result = config['clean_func'](input_file, output_file)
+            if len(result) == 3:
+                df, completeness, duplicates = result
+            else:
+                df, completeness = result
+                duplicates = (df[df['is_duplicate']]
+                              if 'is_duplicate' in df.columns
+                              else pd.DataFrame())
             all_results[name] = {
                 'df': df,
                 'completeness': completeness,
-                'duplicates': df[df['is_duplicate']] if 'is_duplicate' in df.columns else pd.DataFrame()
+                'duplicates': duplicates,
             }
             print(f"成功处理 {name}: {len(df)} 条记录")
         except Exception as e:

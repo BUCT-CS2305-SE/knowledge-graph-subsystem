@@ -1,67 +1,65 @@
-name,category,subcategory
-图,Unknown,Unknown
-算盘,Unknown,Unknown
-秤箱/算盘,Unknown,Unknown
-山花饰,Unknown,Unknown
-入场券/纪念品,Unknown,Unknown
-入场券,Unknown,Unknown
-纪念品/入场券,Unknown,Unknown
-打印,Unknown,Unknown
-装饰纸/广告,Unknown,Unknown
-锛子,Unknown,Unknown
-工具/工具/adze,Unknown,Unknown
-adze/斧头,Unknown,Unknown
-aeolipile,Unknown,Unknown
-akor,Unknown,Unknown
-阿尔巴雷洛,Unknown,Unknown
-绘画,Unknown,Unknown
-植物,Unknown,Unknown
-船舶,Unknown,Unknown
-陶瓷,Unknown,Unknown
-雕塑,Unknown,Unknown
-写论文,Unknown,Unknown
-安装,Unknown,Unknown
-纺织,Unknown,Unknown
-家具陈设,Unknown,Unknown
-集合对象,Unknown,Unknown
-照片,Unknown,Unknown
-家具,Unknown,Unknown
-屏幕,Unknown,Unknown
-标识,Unknown,Unknown
-媒体艺术,Unknown,Unknown
-火/热,Unknown,Unknown
-食品/饮料,Unknown,Unknown
-缓解,Unknown,Unknown
-承运人,Unknown,Unknown
-拼贴,Unknown,Unknown
-光,Unknown,Unknown
-绘图,Unknown,Unknown
-衣服,Unknown,Unknown
-书,Unknown,Unknown
-模型,Unknown,Unknown
-容器,Unknown,Unknown
-服装,Unknown,Unknown
-建筑元素,Unknown,Unknown
-娱乐、玩具、游戏,Unknown,Unknown
-工具,Unknown,Unknown
-瓷砖,Unknown,Unknown
-水彩,Unknown,Unknown
-未知,Unknown,Unknown
-碗,Unknown,Unknown
-纸草、葬礼、《死者之书》、伊默斯、伊姆霍特普、伊穆塞斯,Unknown,Unknown
-圣物盒,Unknown,Unknown
-琵琶,Unknown,Unknown
-手卷,Unknown,Unknown
-Longcase天文调节器,Unknown,Unknown
-十字,Unknown,Unknown
-石碑,Unknown,Unknown
-半身像,Unknown,Unknown
-雕像、Yuny、Renenutet、双人、曼纳特、音乐,Unknown,Unknown
-杯子,Unknown,Unknown
-挂轴,Unknown,Unknown
-盘子,Unknown,Unknown
-立式货架,Unknown,Unknown
-会幕息肉,Unknown,Unknown
-钟表,Unknown,Unknown
-唐卡,Unknown,Unknown
-时期房间,Unknown,Unknown
+name,uri,category,subcategory
+Print,http://buct-kg.org/resource/type/Print,Fine Art,Print
+Figure,http://buct-kg.org/resource/type/Figure,Sculpture,Figure
+Bowl,http://buct-kg.org/resource/type/Bowl,Decorative Arts,Bowl
+Painting,http://buct-kg.org/resource/type/Painting,Fine Art,Painting
+"Papyrus, funerary, Book of the Dead, Imouthes, Imhotep, Imuthes",http://buct-kg.org/resource/type/Papyrus_funerary_Book_of_the_Dead_Imouthes_Imhotep_Imuthes,Unknown,Unknown
+Reliquary,http://buct-kg.org/resource/type/Reliquary,Unknown,Unknown
+Sculpture,http://buct-kg.org/resource/type/Sculpture,Sculpture,Sculpture
+Pipa,http://buct-kg.org/resource/type/Pipa,Unknown,Unknown
+Handscroll,http://buct-kg.org/resource/type/Handscroll,Fine Art,Scroll Painting
+Longcase astronomical regulator,http://buct-kg.org/resource/type/Longcase_astronomical_regulator,Unknown,Unknown
+Cross,http://buct-kg.org/resource/type/Cross,Unknown,Unknown
+Stela,http://buct-kg.org/resource/type/Stela,Unknown,Unknown
+Bust,http://buct-kg.org/resource/type/Bust,Sculpture,Bust
+"Statue, Yuny, Renenutet, pair, menat, music",http://buct-kg.org/resource/type/Statue_Yuny_Renenutet_pair_menat_music,Unknown,Unknown
+Cup,http://buct-kg.org/resource/type/Cup,Unknown,Unknown
+Hanging scroll,http://buct-kg.org/resource/type/Hanging_scroll,Fine Art,Scroll Painting
+Drawing,http://buct-kg.org/resource/type/Drawing,Unknown,Unknown
+Plate,http://buct-kg.org/resource/type/Plate,Decorative Arts,Plate
+Relief,http://buct-kg.org/resource/type/Relief,Sculpture,Relief
+Standing shelf,http://buct-kg.org/resource/type/Standing_shelf,Unknown,Unknown
+Tabernacle polyptych,http://buct-kg.org/resource/type/Tabernacle_polyptych,Unknown,Unknown
+Clock watch,http://buct-kg.org/resource/type/Clock_watch,Unknown,Unknown
+Thangka,http://buct-kg.org/resource/type/Thangka,Unknown,Unknown
+Period room,http://buct-kg.org/resource/type/Period_room,Unknown,Unknown
+Unknown,http://buct-kg.org/resource/type/Unknown,Unknown,Unknown
+Vessel,http://buct-kg.org/resource/type/Vessel,Decorative Arts,Vessel
+Ceramic,http://buct-kg.org/resource/type/Ceramic,Ceramics,Ceramic
+Work on Paper,http://buct-kg.org/resource/type/Work_on_Paper,Unknown,Unknown
+Installation,http://buct-kg.org/resource/type/Installation,Unknown,Unknown
+Textile,http://buct-kg.org/resource/type/Textile,Textiles,Textile
+Furnishing,http://buct-kg.org/resource/type/Furnishing,Unknown,Unknown
+collectionObject,http://buct-kg.org/resource/type/collectionObject,Unknown,Unknown
+Photograph,http://buct-kg.org/resource/type/Photograph,Photography,Photograph
+Furniture,http://buct-kg.org/resource/type/Furniture,Unknown,Unknown
+Screen,http://buct-kg.org/resource/type/Screen,Unknown,Unknown
+Signage,http://buct-kg.org/resource/type/Signage,Unknown,Unknown
+Media art,http://buct-kg.org/resource/type/Media_art,Media Art,Media Art
+Fire/Heat,http://buct-kg.org/resource/type/Fire_Heat,Unknown,Unknown
+Carrier,http://buct-kg.org/resource/type/Carrier,Unknown,Unknown
+Collage,http://buct-kg.org/resource/type/Collage,Unknown,Unknown
+Light,http://buct-kg.org/resource/type/Light,Unknown,Unknown
+Clothing,http://buct-kg.org/resource/type/Clothing,Unknown,Unknown
+Book,http://buct-kg.org/resource/type/Book,Unknown,Unknown
+Model,http://buct-kg.org/resource/type/Model,Unknown,Unknown
+Container,http://buct-kg.org/resource/type/Container,Unknown,Unknown
+Costume,http://buct-kg.org/resource/type/Costume,Textiles,Costume
+Architectural Element,http://buct-kg.org/resource/type/Architectural_Element,Unknown,Unknown
+"Recreation, Toys, Games",http://buct-kg.org/resource/type/Recreation_Toys_Games,Unknown,Unknown
+Tool,http://buct-kg.org/resource/type/Tool,Unknown,Unknown
+Tiles,http://buct-kg.org/resource/type/Tiles,Unknown,Unknown
+abacus,http://buct-kg.org/resource/type/abacus,Unknown,Unknown
+steelyard-case / abacus,http://buct-kg.org/resource/type/steelyard_case_abacus,Unknown,Unknown
+acroterion,http://buct-kg.org/resource/type/acroterion,Unknown,Unknown
+admission-ticket / souvenir,http://buct-kg.org/resource/type/admission_ticket_souvenir,Unknown,Unknown
+admission-ticket,http://buct-kg.org/resource/type/admission_ticket,Unknown,Unknown
+souvenir / admission-ticket,http://buct-kg.org/resource/type/souvenir_admission_ticket,Unknown,Unknown
+decorated paper / advertisement,http://buct-kg.org/resource/type/decorated_paper_advertisement,Unknown,Unknown
+adze,http://buct-kg.org/resource/type/adze,Unknown,Unknown
+tool/implement / adze,http://buct-kg.org/resource/type/tool_implement_adze,Unknown,Unknown
+adze / axe,http://buct-kg.org/resource/type/adze_axe,Unknown,Unknown
+aeolipile,http://buct-kg.org/resource/type/aeolipile,Unknown,Unknown
+akor,http://buct-kg.org/resource/type/akor,Unknown,Unknown
+albarello,http://buct-kg.org/resource/type/albarello,Unknown,Unknown
+Plant,http://buct-kg.org/resource/type/Plant,Unknown,Unknown

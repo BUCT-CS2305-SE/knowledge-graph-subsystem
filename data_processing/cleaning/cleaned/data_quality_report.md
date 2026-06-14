@@ -1,6 +1,6 @@
 # Data Quality Report
 
-**Report Generated:** 2026-05-31T12:36:57.255414
+**Report Generated:** 2026-06-14T15:37:17.694991
 
 ## Summary
 
@@ -8,68 +8,76 @@
 - **Average Quality Score:** 68.85%
 - **Total Duplicates Found:** 381
 
-## Dataset: british_museum
+## Dataset: princeton
 
 ### Basic Statistics
-- Records: 100
-- Average Quality Score: 68.30%
+- Records: 3600
+- Average Quality Score: 65.94%
 - Duplicates Found: 0
 
 ### Field Completeness
 | Field | Completeness |
 |-------|--------------|
 | object_id | 100.0% |
-| title | 100.0% |
+| title | 99.2% |
 | detail_url | 100.0% |
-| image_url | 37.0% |
+| image_url | 99.4% |
 | crawl_date | 100.0% |
 
 ### Top Periods (Standardized)
 | Period | Count |
 |--------|-------|
-| 未知 | 67 |
-| 1982 | 4 |
-| 明朝（1368-1644） | 3 |
-| 19日C | 2 |
-| 1999 | 2 |
-| 公元前5000年至3000年 | 2 |
-| 2010 | 1 |
-| 2005 | 1 |
-| 1937年3月 | 1 |
-| 清朝（1936-1937） | 1 |
+| Unknown | 198 |
+| Qing dynasty (1644-1912) | 123 |
+| 1967 | 98 |
+| Ming dynasty (1368-1644) | 36 |
+| Edo period (1603-1868) | 34 |
+| Modern period, 1912–present | 34 |
+| 1937 | 32 |
+| 1949 | 30 |
+| 1962 | 30 |
+| 19th century | 29 |
 
 ### Top Types (Standardized)
 | Type | Count |
 |------|-------|
-| 锛子 | 59 |
-| 算盘 | 6 |
-| 入场券 | 5 |
-| aeolipile | 5 |
-| 打印 | 5 |
-| 山花饰 | 5 |
-| 入场券/纪念品 | 4 |
-| 绘画 | 3 |
-| akor | 1 |
-| 图 | 1 |
+| Unknown | 3600 |
 
 ### Top Materials (Standardized)
 | Material | Count |
 |----------|-------|
-| 未知 | 100 |
+| Gelatin silver | 1610 |
+| Unknown | 149 |
+| Ink on paper | 127 |
+| Ceramic | 120 |
+| Wood | 116 |
+| Albumen | 93 |
+| Silk | 66 |
+| Graphite | 57 |
+| Glass | 56 |
+| Jade | 53 |
 
 ### Cultures
 | Culture | Count |
 |---------|-------|
-| 未知 | 92 |
-| Tibetan | 8 |
+| Unknown | 2832 |
+| Chinese | 281 |
+| Japanese | 44 |
+| French | 28 |
+| British | 27 |
+| Greek, Attic | 26 |
+| Costa Rican | 25 |
+| Roman | 23 |
+| Lydian | 21 |
+| Lingít | 20 |
 
 ---
 
-## Dataset: brooklyn_botanic
+## Dataset: met
 
 ### Basic Statistics
-- Records: 2
-- Average Quality Score: 80.00%
+- Records: 49
+- Average Quality Score: 82.45%
 - Duplicates Found: 0
 
 ### Field Completeness
@@ -78,28 +86,122 @@
 | object_id | 100.0% |
 | title | 100.0% |
 | detail_url | 100.0% |
-| image_url | 100.0% |
+| image_url | 93.9% |
 | crawl_date | 100.0% |
 
 ### Top Periods (Standardized)
 | Period | Count |
 |--------|-------|
-| 生活收藏 | 2 |
+| Unknown | 31 |
+| Kamakura period (1185-1333) | 4 |
+| Qing dynasty (1644-1912) | 2 |
+| Ming dynasty (1368-1644) | 2 |
+| Yuan dynasty (1271-1368) | 1 |
+| Early Ptolemaic Period | 1 |
+| Bronze Age | 1 |
+| Northern Wei dynasty (386-534) | 1 |
+| Middle Kingdom | 1 |
+| Heian period (794–1185) | 1 |
 
 ### Top Types (Standardized)
 | Type | Count |
 |------|-------|
-| 植物 | 2 |
+| Figure | 12 |
+| Painting | 9 |
+| Hanging scroll | 4 |
+| Print | 2 |
+| Sculpture | 2 |
+| Handscroll | 2 |
+| Cup | 1 |
+| Thangka | 1 |
+| Clock watch | 1 |
+| Tabernacle polyptych | 1 |
 
 ### Top Materials (Standardized)
 | Material | Count |
 |----------|-------|
-| 活体植物 | 2 |
+| Porcelain | 5 |
+| Oil on wood | 5 |
+| Gold | 5 |
+| Ink on paper | 4 |
+| Copper | 3 |
+| Oil on canvas | 2 |
+| Limestone | 2 |
+| Brass | 2 |
+| Wood | 2 |
+| Bronze | 2 |
 
 ### Cultures
 | Culture | Count |
 |---------|-------|
-| 植物学的 | 2 |
+| Unknown | 12 |
+| China | 7 |
+| French | 7 |
+| Japan | 7 |
+| Italian | 5 |
+| Peru (Cuzco) | 2 |
+| Byzantine | 1 |
+| American | 1 |
+| Chinese | 1 |
+| Central Tibet | 1 |
+
+---
+
+## Dataset: chicago
+
+### Basic Statistics
+- Records: 1000
+- Average Quality Score: 77.92%
+- Duplicates Found: 241
+
+### Field Completeness
+| Field | Completeness |
+|-------|--------------|
+| object_id | 100.0% |
+| title | 100.0% |
+| detail_url | 100.0% |
+| image_url | 90.0% |
+| crawl_date | 100.0% |
+
+### Top Periods (Standardized)
+| Period | Count |
+|--------|-------|
+| Qing dynasty (1644-1912) | 140 |
+| Ming dynasty (1368-1644) | 78 |
+| Han dynasty (206 BCE-220 CE) | 76 |
+| Tang dynasty (618-907) | 75 |
+| Song dynasty (960-1279) | 64 |
+| Eastern Zhou dynasty (770-256 BCE) | 45 |
+| Western Zhou dynasty (1046-771 BCE) | 33 |
+| Jin dynasty (1115-1234) | 32 |
+| Shang dynasty (c. 1600-1046 BCE) | 28 |
+| Neolithic period | 18 |
+
+### Top Types (Standardized)
+| Type | Count |
+|------|-------|
+| Unknown | 1000 |
+
+### Top Materials (Standardized)
+| Material | Count |
+|----------|-------|
+| Porcelain | 190 |
+| Ivory | 135 |
+| Stoneware | 98 |
+| Bronze | 94 |
+| Jade | 93 |
+| Earthenware | 77 |
+| Wood | 31 |
+| Bone | 24 |
+| Silk | 19 |
+| Gelatin silver | 18 |
+
+### Cultures
+| Culture | Count |
+|---------|-------|
+| Chinese | 673 |
+| Unknown | 320 |
+| Japanese | 7 |
 
 ---
 
@@ -123,7 +225,7 @@
 | Period | Count |
 |--------|-------|
 | 2016 | 130 |
-| 清朝（2018-2019） | 77 |
+| Qing dynasty (2018-2019) | 77 |
 | 2012 | 62 |
 | 2014 | 46 |
 | 2013 | 38 |
@@ -136,35 +238,35 @@
 ### Top Types (Standardized)
 | Type | Count |
 |------|-------|
-| 照片 | 185 |
-| 绘图 | 118 |
-| 雕塑 | 84 |
-| 绘画 | 78 |
-| 写论文 | 55 |
-| 媒体艺术 | 37 |
-| 家具陈设 | 34 |
-| 纺织 | 17 |
-| 陶瓷 | 16 |
-| 打印 | 15 |
+| Photograph | 185 |
+| Drawing | 118 |
+| Sculpture | 84 |
+| Painting | 78 |
+| Work on Paper | 55 |
+| Media art | 37 |
+| Furnishing | 34 |
+| Textile | 17 |
+| Ceramic | 16 |
+| Food/Drink | 15 |
 
 ### Top Materials (Standardized)
 | Material | Count |
 |----------|-------|
-| 未知 | 720 |
+| Unknown | 720 |
 
 ### Cultures
 | Culture | Count |
 |---------|-------|
-| 未知 | 720 |
+| Unknown | 720 |
 
 ---
 
-## Dataset: chicago
+## Dataset: brooklyn_botanic
 
 ### Basic Statistics
-- Records: 1000
-- Average Quality Score: 77.91%
-- Duplicates Found: 241
+- Records: 2
+- Average Quality Score: 80.00%
+- Duplicates Found: 0
 
 ### Field Completeness
 | Field | Completeness |
@@ -172,48 +274,28 @@
 | object_id | 100.0% |
 | title | 100.0% |
 | detail_url | 100.0% |
-| image_url | 90.0% |
+| image_url | 100.0% |
 | crawl_date | 100.0% |
 
 ### Top Periods (Standardized)
 | Period | Count |
 |--------|-------|
-| 清朝（1644-1912） | 140 |
-| 明朝（1368-1644） | 78 |
-| 汉朝（公元前206年-公元220年） | 76 |
-| 唐朝（618-907） | 75 |
-| 宋朝（960-1279） | 64 |
-| 东周王朝（公元前770-256年） | 45 |
-| 西周（公元前1046-771年） | 33 |
-| 晋朝（1115-1234） | 32 |
-| 商朝（约公元前1600-1046年） | 28 |
-| 新石器时代 | 18 |
+| Living collection | 2 |
 
 ### Top Types (Standardized)
 | Type | Count |
 |------|-------|
-| 未知 | 1000 |
+| Plant | 2 |
 
 ### Top Materials (Standardized)
 | Material | Count |
 |----------|-------|
-| 瓷 | 190 |
-| 象牙 | 135 |
-| 炻器 | 98 |
-| 翡翠 | 95 |
-| 青铜 | 94 |
-| 陶器 | 77 |
-| 木头 | 31 |
-| 骨头 | 24 |
-| 丝绸 | 19 |
-| 明胶银 | 18 |
+| Living plant | 2 |
 
 ### Cultures
 | Culture | Count |
 |---------|-------|
-| 中文 | 673 |
-| 未知 | 320 |
-| 日语 | 7 |
+| Botanical | 2 |
 
 ---
 
@@ -236,36 +318,37 @@
 ### Top Periods (Standardized)
 | Period | Count |
 |--------|-------|
-| 唐朝（618-907） | 2 |
-| 公元前四千年 | 1 |
-| 元朝（1271-1368） | 1 |
-| 清朝（1723-1735） | 1 |
-| 20世纪初 | 1 |
-| 清朝（1644-1912） | 1 |
-| 16世纪 | 1 |
+| Tang dynasty (618-907) | 2 |
+| Qing dynasty (1644-1912) | 1 |
+| 16th century | 1 |
+| Yuan dynasty (1271-1368) | 1 |
+| Beginning of the 20th century | 1 |
+| Qing dynasty (1723-1735) | 1 |
+| 4th millennium BC | 1 |
+| nan | 1 |
 
 ### Top Types (Standardized)
 | Type | Count |
 |------|-------|
-| 未知 | 9 |
+| Unknown | 9 |
 
 ### Top Materials (Standardized)
 | Material | Count |
 |----------|-------|
-| 未知 | 9 |
+| Unknown | 9 |
 
 ### Cultures
 | Culture | Count |
 |---------|-------|
-| 中文 | 9 |
+| Chinese | 9 |
 
 ---
 
-## Dataset: met
+## Dataset: british_museum
 
 ### Basic Statistics
-- Records: 49
-- Average Quality Score: 82.45%
+- Records: 100
+- Average Quality Score: 68.30%
 - Duplicates Found: 0
 
 ### Field Completeness
@@ -274,129 +357,47 @@
 | object_id | 100.0% |
 | title | 100.0% |
 | detail_url | 100.0% |
-| image_url | 93.9% |
+| image_url | 37.0% |
 | crawl_date | 100.0% |
 
 ### Top Periods (Standardized)
 | Period | Count |
 |--------|-------|
-| 未知 | 31 |
-| 镰仓时期（1185-1333） | 4 |
-| 清朝（1644-1912） | 2 |
-| 明朝（1368-1644） | 2 |
-| 元朝（1271-1368） | 1 |
-| 中央王国 | 1 |
-| 青铜时代 | 1 |
-| 北魏（386-534） | 1 |
-| 江户时代（1603-1868） | 1 |
-| 托勒密王朝早期 | 1 |
+| Unknown | 67 |
+| 1982 | 4 |
+| Ming dynasty (1368-1644) | 3 |
+| 19thC | 2 |
+| 1999 | 2 |
+| 5000BC-3000BC | 2 |
+| Qing dynasty (1801-2000) | 1 |
+| Qing dynasty (1980-1989) | 1 |
+| March 1937 | 1 |
+| 1820 | 1 |
 
 ### Top Types (Standardized)
 | Type | Count |
 |------|-------|
-| 图 | 12 |
-| 绘画 | 9 |
-| 挂轴 | 4 |
-| 手卷 | 2 |
-| 打印 | 2 |
-| 雕塑 | 2 |
-| 半身像 | 1 |
-| 圣物盒 | 1 |
-| 会幕息肉 | 1 |
-| 绘图 | 1 |
+| adze | 59 |
+| abacus | 6 |
+| acroterion | 5 |
+| admission-ticket | 5 |
+| Print | 5 |
+| aeolipile | 5 |
+| admission-ticket / souvenir | 4 |
+| Painting | 3 |
+| Figure | 1 |
+| steelyard-case / abacus | 1 |
 
 ### Top Materials (Standardized)
 | Material | Count |
 |----------|-------|
-| 瓷 | 5 |
-| 木头上的油 | 5 |
-| 金 | 5 |
-| 水墨纸本 | 4 |
-| 铜 | 3 |
-| 大理石 | 2 |
-| 布面油画 | 2 |
-| 木头 | 2 |
-| 银 | 2 |
-| 黄铜 | 2 |
+| Unknown | 100 |
 
 ### Cultures
 | Culture | Count |
 |---------|-------|
-| 未知 | 12 |
-| 中国 | 7 |
-| 日本 | 7 |
-| 法语 | 7 |
-| 意大利语 | 5 |
-| 秘鲁（库斯科） | 2 |
-| Tibet | 1 |
-| 法国北部（？） | 1 |
-| 北部高地地区 | 1 |
-| 美国人 | 1 |
-
----
-
-## Dataset: princeton
-
-### Basic Statistics
-- Records: 3600
-- Average Quality Score: 65.94%
-- Duplicates Found: 0
-
-### Field Completeness
-| Field | Completeness |
-|-------|--------------|
-| object_id | 100.0% |
-| title | 99.2% |
-| detail_url | 100.0% |
-| image_url | 99.4% |
-| crawl_date | 100.0% |
-
-### Top Periods (Standardized)
-| Period | Count |
-|--------|-------|
-| 未知 | 198 |
-| 清朝（1644-1912） | 123 |
-| 1967 | 98 |
-| 明朝（1368-1644） | 36 |
-| 江户时代（1603-1868） | 34 |
-| 现代时期，1912年至今 | 34 |
-| 1937 | 32 |
-| 1949 | 30 |
-| 1962 | 30 |
-| 汉朝（公元前206年-公元220年） | 29 |
-
-### Top Types (Standardized)
-| Type | Count |
-|------|-------|
-| 未知 | 3600 |
-
-### Top Materials (Standardized)
-| Material | Count |
-|----------|-------|
-| 明胶银 | 1610 |
-| 未知 | 149 |
-| 水墨纸本 | 127 |
-| 陶瓷 | 120 |
-| 木头 | 116 |
-| 相册 | 93 |
-| 丝绸 | 66 |
-| 石墨 | 57 |
-| 玻璃 | 56 |
-| 翡翠 | 54 |
-
-### Cultures
-| Culture | Count |
-|---------|-------|
-| 未知 | 2832 |
-| 中文 | 281 |
-| 日语 | 44 |
-| 法语 | 28 |
-| 英国的 | 27 |
-| 希腊语，阁楼 | 26 |
-| 哥斯达黎加的 | 25 |
-| 罗马 | 23 |
-| 吕底亚人 | 21 |
-| 伊斯兰的 | 20 |
+| Unknown | 92 |
+| Tibetan | 8 |
 
 ---
 

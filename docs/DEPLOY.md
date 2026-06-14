@@ -403,6 +403,104 @@ cypher-shell -u neo4j -p '一个强密码' \
 
 ---
 
+## 7.6 服务器重灌：清空旧库 → 重新入库（已部署过的场景）
+
+> 适用场景：服务器**之前已经入过库**，本地重新生成了对齐产物
+> （含新增的 `Artist` / `Location` 节点、各实体 `uri` 列），需要**先删除旧数据再重新入库**。
+>
+> 为什么不能只重跑 builder：
+> - **Neo4j**：builder 用 `MERGE` 增量写入，不加 `--reset` 会**残留旧节点/旧关系**，必须清空。
+> - **MySQL**：builder 用 upsert（`ON DUPLICATE KEY UPDATE`），只更新不删除；
+>   若新数据条数比旧库少，旧的多余行会**残留**，需要先 `TRUNCATE`。
+
+### 步骤 1（本地）确认产物已是最新
+
+本地已跑过 `clean → align`（无需图片即可入库，DB 不依赖图片文件）。确认产物存在：
+
+```bash
+# 本机仓库根执行
+ls data_processing/alignment/neo4j_import/nodes_*.csv
+#   应见 7 个：artworks / museums / periods / types / materials / artists / locations
+ls data_processing/alignment/neo4j_import/relationships_*.csv
+#   应见 6 个：museum / period / type / material / artist / location
+head -1 data_processing/alignment/neo4j_import/nodes_periods.csv
+#   应包含 uri 列：name,uri,era
+```
+
+### 步骤 2（本地 → 服务器）同步数据文件
+
+只需同步**入库相关的数据目录**，无需上传图片。本机执行：
+
+```bash
+# 把整个 data_processing/ 和 enrichment 产物 rsync 到服务器
+rsync -avz --delete \
+    data_processing/alignment/ \
+    <user>@<server>:/opt/kg/knowledge-graph-subsystem/data_processing/alignment/
+
+rsync -avz \
+    data_processing/cleaning/cleaned/ \
+    <user>@<server>:/opt/kg/knowledge-graph-subsystem/data_processing/cleaning/cleaned/
+
+rsync -avz \
+    data_update/enrichment/augmented_entities.json \
+    data_update/enrichment/augmented_entities.csv \
+    <user>@<server>:/opt/kg/knowledge-graph-subsystem/data_update/enrichment/
+```
+
+> 需要上传的核心文件清单：
+> - `data_processing/alignment/neo4j_import/`（7 个 nodes_*.csv + 6 个 relationships_*.csv）← **Neo4j 主输入**
+> - `data_processing/alignment/by_dataset/clean_*.csv`（7 个馆）← **MySQL 主输入**
+> - `data_processing/cleaning/cleaned/clean_*.csv`（MySQL 兜底）
+> - `data_update/enrichment/augmented_entities.json`（Neo4j 补充属性）
+
+### 步骤 3（服务器）清空旧数据
+
+```bash
+cd /opt/kg/knowledge-graph-subsystem
+source venv/bin/activate
+set -a && source .env && set +a
+
+# MySQL：清空 artifacts 表（保留表结构）
+mysql -ukguser -p -h127.0.0.1 knowledge_graph_db \
+      -e "TRUNCATE TABLE artifacts;"
+
+# Neo4j：在重建命令里用 --reset 清空全图（见步骤 4），无需手动清
+```
+
+### 步骤 4（服务器）重新入库
+
+```bash
+# MySQL：重新灌入（表已清空，等价全量重建）
+python3 db/mysql_builder.py
+#   末尾应打印 [mysql] artifacts total rows = 5381（与本地对齐产物一致）
+
+# Neo4j：--reset 先 DETACH DELETE 全图，再重建
+python3 db/neo4j_builder.py --reset
+#   应打印：
+#   [neo4j] nodes upserted: Artifact=... Museum=6 Period=... Type=... Material=... Artist=210 Location=157
+#   [neo4j] rels  upserted: STORED_IN=... CREATED_BY=1013 ORIGINATES_FROM=1812 ...
+```
+
+### 步骤 5（服务器）核验 + 重启服务
+
+```bash
+# 一致性自检
+mysql -ukguser -p -h127.0.0.1 knowledge_graph_db -e "SELECT COUNT(*) FROM artifacts;"
+cypher-shell -u neo4j -p '一个强密码' \
+      "MATCH (n) RETURN labels(n) AS l, count(*) AS c ORDER BY c DESC;"
+#   应能看到 Artist / Location 两类新标签
+
+# 重启 API
+sudo systemctl restart kg-api
+curl -s http://127.0.0.1:8000/api/admin/consistency-check  # 需带 admin token
+```
+
+> **后续保鲜**：日常增量更新仍按 §11 cron，
+> 或在 API docs 点 `POST /api/admin/jobs/incremental` → `POST /api/admin/jobs/enrich`，
+> 再 `python3 db/mysql_builder.py && python3 db/neo4j_builder.py --reset` 重灌。
+
+---
+
 ## 8. 启动 API 服务
 
 ### 8.1 前台开发模式（仅调试）

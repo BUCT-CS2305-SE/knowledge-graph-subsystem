@@ -1,11 +1,88 @@
 """
 实体对齐模块
-对朝代、博物馆、类型、材质进行标准化对齐
+对朝代、博物馆、类型、材质、艺术家、地点进行标准化对齐，
+并为每个实体生成唯一标识符 URI（满足跨数据源去重与可追溯要求）。
 """
 
 import pandas as pd
 import json
 import os
+import re
+
+
+# 知识图谱 URI 命名空间（用于实体唯一标识，避免图中重复节点）
+URI_BASE = "http://buct-kg.org/resource"
+
+# 视为"无效/未知"的取值，提取艺术家、地点时跳过
+_INVALID_VALUES = {
+    '', 'unknown', 'none', 'nan', 'n/a', 'na', 'null',
+    'unidentified', 'not applicable',
+}
+
+
+def make_uri(kind: str, name) -> str:
+    """根据实体类别与名称生成稳定 URI。
+
+    同名实体在所有数据源中会映射到同一 URI，从而实现跨源去重。
+    """
+    if pd.isna(name) or str(name).strip() == '':
+        return ''
+    slug = re.sub(r'[^0-9A-Za-z\u4e00-\u9fff]+', '_', str(name).strip()).strip('_')
+    if not slug:
+        return ''
+    return f"{URI_BASE}/{kind}/{slug}"
+
+
+def _is_invalid(value) -> bool:
+    if pd.isna(value):
+        return True
+    s = str(value).strip()
+    if s.lower() in _INVALID_VALUES:
+        return True
+    # "Artist unknown ..."、"Maker unidentified" 等
+    if re.search(r'unknown|unidentified|佚名|不详|无款', s, re.IGNORECASE):
+        return True
+    return False
+
+
+class ArtistEntityAligner:
+    """艺术家实体对齐器：从各馆不同列名中提取并清洗艺术家名。"""
+
+    # 候选列（按优先级），覆盖 met / chicago 等不同字段命名
+    CANDIDATE_COLUMNS = [
+        '_artist', 'artist', '_artist_name', '_maker', '_attribution',
+    ]
+
+    @classmethod
+    def extract(cls, row) -> str:
+        for col in cls.CANDIDATE_COLUMNS:
+            v = row.get(col) if hasattr(row, 'get') else None
+            if v is not None and not _is_invalid(v):
+                # 仅取首行（部分馆把生平塞在同一字段，用换行分隔）
+                name = str(v).strip().splitlines()[0].strip()
+                if name and not _is_invalid(name):
+                    return name[:200]
+        return ''
+
+
+class LocationEntityAligner:
+    """地点实体对齐器：提取文物产地/来源地。"""
+
+    # 候选列（按优先级）：产地 > 国家/地区 > 文化
+    CANDIDATE_COLUMNS = [
+        '_place_of_origin', '_country', '_region',
+        '_displayculture', '_culture', 'culture',
+    ]
+
+    @classmethod
+    def extract(cls, row) -> str:
+        for col in cls.CANDIDATE_COLUMNS:
+            v = row.get(col) if hasattr(row, 'get') else None
+            if v is not None and not _is_invalid(v):
+                name = str(v).strip().splitlines()[0].strip()
+                if name and not _is_invalid(name):
+                    return name[:150]
+        return ''
 
 
 class MuseumEntityAligner:
@@ -362,6 +439,18 @@ def align_all_datasets(cleaned_dir, output_dir):
     combined_df['type_subcategory'] = combined_df['standardized_type'].apply(TypeEntityAligner.get_subcategory)
     combined_df['aligned_material'] = combined_df['standardized_material'].apply(MaterialEntityAligner.align)
     combined_df['material_category'] = combined_df['standardized_material'].apply(MaterialEntityAligner.get_category)
+    # 艺术家 / 地点（从各馆差异化列名中提取）
+    combined_df['aligned_artist'] = combined_df.apply(ArtistEntityAligner.extract, axis=1)
+    combined_df['aligned_location'] = combined_df.apply(LocationEntityAligner.extract, axis=1)
+
+    # 为每类实体生成唯一标识符 URI（跨数据源去重 + 可追溯）
+    combined_df['artwork_uri'] = combined_df['object_id'].apply(lambda v: make_uri('artifact', v))
+    combined_df['museum_uri'] = combined_df['aligned_museum'].apply(lambda v: make_uri('museum', v))
+    combined_df['period_uri'] = combined_df['aligned_period'].apply(lambda v: make_uri('period', v))
+    combined_df['type_uri'] = combined_df['aligned_type'].apply(lambda v: make_uri('type', v))
+    combined_df['material_uri'] = combined_df['aligned_material'].apply(lambda v: make_uri('material', v))
+    combined_df['artist_uri'] = combined_df['aligned_artist'].apply(lambda v: make_uri('artist', v))
+    combined_df['location_uri'] = combined_df['aligned_location'].apply(lambda v: make_uri('location', v))
     
     # 保存对齐后的数据
     combined_output = os.path.join(output_dir, 'aligned_combined.csv')
@@ -428,56 +517,82 @@ def create_neo4j_import_files(combined_df, output_dir):
     os.makedirs(output_dir, exist_ok=True)
     
     # 1. 文物节点
-    artworks_df = combined_df[['object_id', 'title', 'description', 'dimensions', 
+    artworks_df = combined_df[['object_id', 'artwork_uri', 'title', 'description', 'dimensions',
                                'accession_number', 'detail_url', 'image_url',
                                'aligned_period', 'aligned_type', 'aligned_material',
+                               'aligned_artist', 'aligned_location',
                                'data_quality_score']].drop_duplicates(subset=['object_id'])
+    artworks_df = artworks_df.rename(columns={'artwork_uri': 'uri'})
     artworks_df.to_csv(os.path.join(output_dir, 'nodes_artworks.csv'), index=False)
     print(f"文物节点: {len(artworks_df)} 条")
     
     # 2. 博物馆节点
-    museums_df = combined_df[['aligned_museum', 'museum_location']].drop_duplicates(subset=['aligned_museum'])
-    museums_df = museums_df.rename(columns={'aligned_museum': 'name', 'museum_location': 'location'})
+    museums_df = combined_df[['aligned_museum', 'museum_uri', 'museum_location']].drop_duplicates(subset=['aligned_museum'])
+    museums_df = museums_df.rename(columns={'aligned_museum': 'name', 'museum_uri': 'uri', 'museum_location': 'location'})
     museums_df.to_csv(os.path.join(output_dir, 'nodes_museums.csv'), index=False)
     print(f"博物馆节点: {len(museums_df)} 条")
     
     # 3. 时期节点
-    periods_df = combined_df[['aligned_period', 'period_era']].drop_duplicates(subset=['aligned_period'])
-    periods_df = periods_df.rename(columns={'aligned_period': 'name', 'period_era': 'era'})
+    periods_df = combined_df[['aligned_period', 'period_uri', 'period_era']].drop_duplicates(subset=['aligned_period'])
+    periods_df = periods_df.rename(columns={'aligned_period': 'name', 'period_uri': 'uri', 'period_era': 'era'})
     periods_df.to_csv(os.path.join(output_dir, 'nodes_periods.csv'), index=False)
     print(f"时期节点: {len(periods_df)} 条")
     
     # 4. 类型节点
-    types_df = combined_df[['aligned_type', 'type_category', 'type_subcategory']].drop_duplicates(subset=['aligned_type'])
-    types_df = types_df.rename(columns={'aligned_type': 'name', 'type_category': 'category', 'type_subcategory': 'subcategory'})
+    types_df = combined_df[['aligned_type', 'type_uri', 'type_category', 'type_subcategory']].drop_duplicates(subset=['aligned_type'])
+    types_df = types_df.rename(columns={'aligned_type': 'name', 'type_uri': 'uri', 'type_category': 'category', 'type_subcategory': 'subcategory'})
     types_df.to_csv(os.path.join(output_dir, 'nodes_types.csv'), index=False)
     print(f"类型节点: {len(types_df)} 条")
     
     # 5. 材质节点
-    materials_df = combined_df[['aligned_material', 'material_category']].drop_duplicates(subset=['aligned_material'])
-    materials_df = materials_df.rename(columns={'aligned_material': 'name', 'material_category': 'category'})
+    materials_df = combined_df[['aligned_material', 'material_uri', 'material_category']].drop_duplicates(subset=['aligned_material'])
+    materials_df = materials_df.rename(columns={'aligned_material': 'name', 'material_uri': 'uri', 'material_category': 'category'})
     materials_df.to_csv(os.path.join(output_dir, 'nodes_materials.csv'), index=False)
     print(f"材质节点: {len(materials_df)} 条")
-    
-    # 6. 关系文件: 文物-博物馆
+
+    # 6. 艺术家节点（过滤空值）
+    artists_src = combined_df[combined_df['aligned_artist'].astype(bool) & (combined_df['aligned_artist'] != '')]
+    artists_df = artists_src[['aligned_artist', 'artist_uri']].drop_duplicates(subset=['aligned_artist'])
+    artists_df = artists_df.rename(columns={'aligned_artist': 'name', 'artist_uri': 'uri'})
+    artists_df.to_csv(os.path.join(output_dir, 'nodes_artists.csv'), index=False)
+    print(f"艺术家节点: {len(artists_df)} 条")
+
+    # 7. 地点节点（过滤空值）
+    loc_src = combined_df[combined_df['aligned_location'].astype(bool) & (combined_df['aligned_location'] != '')]
+    locations_df = loc_src[['aligned_location', 'location_uri']].drop_duplicates(subset=['aligned_location'])
+    locations_df = locations_df.rename(columns={'aligned_location': 'name', 'location_uri': 'uri'})
+    locations_df.to_csv(os.path.join(output_dir, 'nodes_locations.csv'), index=False)
+    print(f"地点节点: {len(locations_df)} 条")
+
+    # 8. 关系文件: 文物-博物馆
     artwork_museum_df = combined_df[['object_id', 'aligned_museum']].drop_duplicates()
     artwork_museum_df.to_csv(os.path.join(output_dir, 'relationships_artwork_museum.csv'), index=False)
     print(f"文物-博物馆关系: {len(artwork_museum_df)} 条")
     
-    # 7. 关系文件: 文物-时期
+    # 9. 关系文件: 文物-时期
     artwork_period_df = combined_df[['object_id', 'aligned_period']].drop_duplicates()
     artwork_period_df.to_csv(os.path.join(output_dir, 'relationships_artwork_period.csv'), index=False)
     print(f"文物-时期关系: {len(artwork_period_df)} 条")
     
-    # 8. 关系文件: 文物-类型
+    # 10. 关系文件: 文物-类型
     artwork_type_df = combined_df[['object_id', 'aligned_type']].drop_duplicates()
     artwork_type_df.to_csv(os.path.join(output_dir, 'relationships_artwork_type.csv'), index=False)
     print(f"文物-类型关系: {len(artwork_type_df)} 条")
     
-    # 9. 关系文件: 文物-材质
+    # 11. 关系文件: 文物-材质
     artwork_material_df = combined_df[['object_id', 'aligned_material']].drop_duplicates()
     artwork_material_df.to_csv(os.path.join(output_dir, 'relationships_artwork_material.csv'), index=False)
     print(f"文物-材质关系: {len(artwork_material_df)} 条")
+
+    # 12. 关系文件: 文物-艺术家（创作于）
+    artwork_artist_df = artists_src[['object_id', 'aligned_artist']].drop_duplicates()
+    artwork_artist_df.to_csv(os.path.join(output_dir, 'relationships_artwork_artist.csv'), index=False)
+    print(f"文物-艺术家关系: {len(artwork_artist_df)} 条")
+
+    # 13. 关系文件: 文物-地点（出土/产自）
+    artwork_location_df = loc_src[['object_id', 'aligned_location']].drop_duplicates()
+    artwork_location_df.to_csv(os.path.join(output_dir, 'relationships_artwork_location.csv'), index=False)
+    print(f"文物-地点关系: {len(artwork_location_df)} 条")
     
     print(f"\nNeo4j 导入文件已保存到: {output_dir}")
 
@@ -490,10 +605,11 @@ if __name__ == "__main__":
     # 因为 alignment 和 cleaning 在同一级目录下
     CLEANED_DIR = os.path.join(CURRENT_DIR, '..', 'cleaning', 'cleaned')
     
-    # 对齐后的输出目录: alignment/aligned
-    ALIGNED_DIR = os.path.join(CURRENT_DIR, 'aligned')
-    
-    # Neo4j 导入文件目录
+    # 对齐后的输出目录: alignment/ 本身
+    # （与 db/neo4j_builder.py、db/mysql_builder.py 的读取路径保持一致）
+    ALIGNED_DIR = CURRENT_DIR
+
+    # Neo4j 导入文件目录: alignment/neo4j_import
     NEO4J_DIR = os.path.join(ALIGNED_DIR, 'neo4j_import')
     
     print("=" * 60)

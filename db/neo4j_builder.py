@@ -7,12 +7,16 @@ Neo4j 知识图谱构建器：把 alignment 输出与 enrichment 结果写入 Ne
     Period    ↔ E4  Period
     Type      ↔ E55 Type
     Material  ↔ E57 Material
+    Artist    ↔ E21 Person
+    Location  ↔ E53 Place
 
 关系类型：
     (Artifact)-[:STORED_IN]->(Museum)
     (Artifact)-[:BELONGS_TO_PERIOD]->(Period)
     (Artifact)-[:HAS_TYPE]->(Type)
     (Artifact)-[:MADE_OF]->(Material)
+    (Artifact)-[:CREATED_BY]->(Artist)
+    (Artifact)-[:ORIGINATES_FROM]->(Location)
 
 数据来源（按优先级）：
     必需 (任选其一)：
@@ -183,6 +187,8 @@ CONSTRAINTS = [
     "CREATE CONSTRAINT period_name IF NOT EXISTS FOR (p:Period)   REQUIRE p.name IS UNIQUE",
     "CREATE CONSTRAINT type_name   IF NOT EXISTS FOR (t:Type)     REQUIRE t.name IS UNIQUE",
     "CREATE CONSTRAINT material_name IF NOT EXISTS FOR (x:Material) REQUIRE x.name IS UNIQUE",
+    "CREATE CONSTRAINT artist_name IF NOT EXISTS FOR (p:Artist)   REQUIRE p.name IS UNIQUE",
+    "CREATE CONSTRAINT location_name IF NOT EXISTS FOR (l:Location) REQUIRE l.name IS UNIQUE",
 ]
 
 
@@ -203,7 +209,8 @@ def merge_artifacts(session, rows: list[dict], batch: int = 500) -> int:
     cypher = (
         "UNWIND $rows AS r "
         "MERGE (a:Artifact {id: r.id}) "
-        "SET a.title = r.title, "
+        "SET a.uri = r.uri, "
+        "    a.title = r.title, "
         "    a.title_en = r.title_en, "
         "    a.description = r.description, "
         "    a.description_en = r.description_en, "
@@ -220,6 +227,7 @@ def merge_artifacts(session, rows: list[dict], batch: int = 500) -> int:
             continue
         payload.append({
             "id": oid,
+            "uri": r.get("uri", "") or "",
             "title": r.get("title", "") or "",
             "title_en": (r.get("title_en")
                          or r.get("title_original_en")
@@ -244,8 +252,8 @@ def merge_artifacts(session, rows: list[dict], batch: int = 500) -> int:
 def merge_simple_nodes(session, label: str, rows: list[dict],
                        extra_props: list[str] | None = None) -> int:
     extra_props = extra_props or []
-    # 始终接受可选 name_en 列
-    all_props = list(extra_props) + ["name_en"]
+    # 始终接受可选 name_en 与 uri 列
+    all_props = list(extra_props) + ["name_en", "uri"]
     set_clause = ", ".join(f"n.{p} = r.{p}" for p in all_props)
     set_clause = " SET " + set_clause
     cypher = (
@@ -261,6 +269,7 @@ def merge_simple_nodes(session, label: str, rows: list[dict],
         for p in extra_props:
             item[p] = (r.get(p) or "").strip()
         item["name_en"] = (r.get("name_en") or "").strip()
+        item["uri"] = (r.get("uri") or "").strip()
         payload.append(item)
     total = 0
     for chunk in chunked(payload, 500):
@@ -310,6 +319,8 @@ KIND_TO_LABEL = {
     "museum": "Museum",
     "type": "Type",
     "material": "Material",
+    "artist": "Artist",
+    "location": "Location",
 }
 
 
@@ -368,10 +379,14 @@ def main(argv: list[str] | None = None) -> int:
     periods = read_csv(ALIGN_DIR / "nodes_periods.csv")
     types = read_csv(ALIGN_DIR / "nodes_types.csv")
     materials = read_csv(ALIGN_DIR / "nodes_materials.csv")
+    artists = read_csv(ALIGN_DIR / "nodes_artists.csv")
+    locations = read_csv(ALIGN_DIR / "nodes_locations.csv")
     rel_museum = read_csv(ALIGN_DIR / "relationships_artwork_museum.csv")
     rel_period = read_csv(ALIGN_DIR / "relationships_artwork_period.csv")
     rel_type = read_csv(ALIGN_DIR / "relationships_artwork_type.csv")
     rel_material = read_csv(ALIGN_DIR / "relationships_artwork_material.csv")
+    rel_artist = read_csv(ALIGN_DIR / "relationships_artwork_artist.csv")
+    rel_location = read_csv(ALIGN_DIR / "relationships_artwork_location.csv")
 
     # 注入双语字段（从 by_dataset/clean_*.csv 推导）
     artifact_en, period_zh2en, type_zh2en, material_zh2en = build_bilingual_lookup()
@@ -417,8 +432,11 @@ def main(argv: list[str] | None = None) -> int:
             n_p = merge_simple_nodes(session, "Period", periods, ["era"])
             n_t = merge_simple_nodes(session, "Type", types, ["category", "subcategory"])
             n_x = merge_simple_nodes(session, "Material", materials, ["category"])
+            n_ar = merge_simple_nodes(session, "Artist", artists)
+            n_l = merge_simple_nodes(session, "Location", locations)
             print(f"[neo4j] nodes upserted: Artifact={n_a} Museum={n_m} "
-                  f"Period={n_p} Type={n_t} Material={n_x}")
+                  f"Period={n_p} Type={n_t} Material={n_x} "
+                  f"Artist={n_ar} Location={n_l}")
 
             r1 = merge_relationships(session, "STORED_IN", "Museum",
                                      "aligned_museum", rel_museum)
@@ -428,8 +446,13 @@ def main(argv: list[str] | None = None) -> int:
                                      "aligned_type", rel_type)
             r4 = merge_relationships(session, "MADE_OF", "Material",
                                      "aligned_material", rel_material)
+            r5 = merge_relationships(session, "CREATED_BY", "Artist",
+                                     "aligned_artist", rel_artist)
+            r6 = merge_relationships(session, "ORIGINATES_FROM", "Location",
+                                     "aligned_location", rel_location)
             print(f"[neo4j] rels upserted: STORED_IN={r1} BELONGS_TO_PERIOD={r2} "
-                  f"HAS_TYPE={r3} MADE_OF={r4}")
+                  f"HAS_TYPE={r3} MADE_OF={r4} CREATED_BY={r5} "
+                  f"ORIGINATES_FROM={r6}")
 
             if not args.skip_enrichment:
                 enrich = find_enrichment_path()
