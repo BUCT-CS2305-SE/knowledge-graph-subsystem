@@ -3,7 +3,6 @@
 从海外博物馆网站爬取中国文物信息，经数据清洗、建模与存储，构建结构化的海外文物知识图谱，为知识服务、问答及可视化提供数据基础。
 
 > 本组（5 团）负责的三家博物馆：**普林斯顿大学艺术博物馆、芝加哥艺术博物馆、布鲁克林艺术博物馆**。
-> 需求原文见 [docs/target.md](docs/target.md)。
 
 ---
 
@@ -70,7 +69,7 @@ knowledge-graph-subsystem/
 | `Artist` | 艺术家 | E21 Person |
 | `Location` | 地点 | E53 Place |
 
-每类实体均带唯一标识 `uri`（形如 `http://buct-kg.org/resource/{kind}/{slug}`），同名实体跨数据源映射到同一 URI 以实现去重。
+每类实体均带唯一标识 `uri`，同名实体跨数据源映射到同一 URI 以实现去重。
 
 ### 关系
 
@@ -190,6 +189,5 @@ pytest tests/test_schema.py
 
 ## 8. 相关文档
 
-- [docs/target.md](docs/target.md) — 需求原文与验收标准
 - [docs/DEPLOY.md](docs/DEPLOY.md) — 部署与运维手册
 - 各模块 README：[crawlers](crawlers/README.md)、[cleaning](data_processing/cleaning/README.md)、[alignment](data_processing/alignment/README.md)、[enrichment](data_update/enrichment/README.md)、[incremental](data_update/incremental/README.md)、[server](server/README.md)
