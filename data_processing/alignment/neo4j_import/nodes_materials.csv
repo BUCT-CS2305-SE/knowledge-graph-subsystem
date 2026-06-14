@@ -1,37 +1,46 @@
-name,category
-,Unknown
-丝绸,Textile
-象牙,Organic
-瓷,Ceramic
-油,Painting Material
-墨水,Painting Material
-银,Metal
-纸,Paper/Canvas
-木头,Wood
-水彩,Painting Material
-水粉,Painting Material
-棉花,Textile
-玻璃,Glass
-石灰岩,Jade/Stone
-青铜,Metal
-陶器,Ceramic
-石头,Jade/Stone
-翡翠,Jade/Stone
-铜,Metal
-炻器,Ceramic
-大理石,Jade/Stone
-玉,Jade/Stone
-骨头,Organic
-铁,Metal
-黄铜,Metal
-金,Metal
-亚麻,Textile
-水墨,Painting Material
-陶瓷,Ceramic
-丙烯,Painting Material
-花岗岩,Jade/Stone
-蛋彩,Painting Material
-羊毛,Textile
-竹子,Wood
-明胶,Photographic
-画布,Paper/Canvas
+name,uri,category
+Ink,http://buct-kg.org/resource/material/Ink,Painting Material
+Wood,http://buct-kg.org/resource/material/Wood,Wood
+Stone,http://buct-kg.org/resource/material/Stone,Jade/Stone
+Gold,http://buct-kg.org/resource/material/Gold,Metal
+,,Unknown
+Silver,http://buct-kg.org/resource/material/Silver,Metal
+Glass,http://buct-kg.org/resource/material/Glass,Glass
+Ivory,http://buct-kg.org/resource/material/Ivory,Organic
+Nephrite,http://buct-kg.org/resource/material/Nephrite,Jade/Stone
+Porcelain,http://buct-kg.org/resource/material/Porcelain,Ceramic
+Brass,http://buct-kg.org/resource/material/Brass,Metal
+Copper,http://buct-kg.org/resource/material/Copper,Metal
+Bronze,http://buct-kg.org/resource/material/Bronze,Metal
+Oil,http://buct-kg.org/resource/material/Oil,Painting Material
+Limestone,http://buct-kg.org/resource/material/Limestone,Jade/Stone
+Marble,http://buct-kg.org/resource/material/Marble,Jade/Stone
+Stoneware,http://buct-kg.org/resource/material/Stoneware,Ceramic
+Ceramic,http://buct-kg.org/resource/material/Ceramic,Ceramic
+Silk,http://buct-kg.org/resource/material/Silk,Textile
+Unknown,http://buct-kg.org/resource/material/Unknown,Unknown
+Paper,http://buct-kg.org/resource/material/Paper,Paper/Canvas
+Watercolor,http://buct-kg.org/resource/material/Watercolor,Painting Material
+Gouache,http://buct-kg.org/resource/material/Gouache,Painting Material
+Cotton,http://buct-kg.org/resource/material/Cotton,Textile
+Earthenware,http://buct-kg.org/resource/material/Earthenware,Ceramic
+Crystal,http://buct-kg.org/resource/material/Crystal,Jade/Stone
+Jade,http://buct-kg.org/resource/material/Jade,Jade/Stone
+Bone,http://buct-kg.org/resource/material/Bone,Organic
+Iron,http://buct-kg.org/resource/material/Iron,Metal
+Linen,http://buct-kg.org/resource/material/Linen,Textile
+Pastel,http://buct-kg.org/resource/material/Pastel,Painting Material
+Jadeite,http://buct-kg.org/resource/material/Jadeite,Jade/Stone
+Terracotta,http://buct-kg.org/resource/material/Terracotta,Ceramic
+Albumen,http://buct-kg.org/resource/material/Albumen,Photographic
+Acrylic,http://buct-kg.org/resource/material/Acrylic,Painting Material
+Cardboard,http://buct-kg.org/resource/material/Cardboard,Paper/Canvas
+Shell,http://buct-kg.org/resource/material/Shell,Organic
+Chromogenic,http://buct-kg.org/resource/material/Chromogenic,Photographic
+Clay,http://buct-kg.org/resource/material/Clay,Ceramic
+Granite,http://buct-kg.org/resource/material/Granite,Jade/Stone
+Tempera,http://buct-kg.org/resource/material/Tempera,Painting Material
+Wool,http://buct-kg.org/resource/material/Wool,Textile
+Textile,http://buct-kg.org/resource/material/Textile,Textile
+Bamboo,http://buct-kg.org/resource/material/Bamboo,Wood
+Canvas,http://buct-kg.org/resource/material/Canvas,Paper/Canvas

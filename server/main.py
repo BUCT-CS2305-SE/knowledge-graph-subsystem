@@ -5,8 +5,10 @@ from __future__ import annotations
 from fastapi import FastAPI, Request
 from fastapi.exceptions import HTTPException as FastAPIHTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from fastapi.responses import JSONResponse
 
+from .auth import verify_token
 from .config import app_config
 from .db import close_neo4j_driver
 from .routers import (
@@ -38,6 +40,26 @@ def create_app() -> FastAPI:
         allow_headers=["*"],
     )
 
+    @app.middleware("http")
+    async def auth_middleware(request: Request, call_next):
+        path = request.url.path
+        if path.startswith("/api/") and path != "/api/health":
+            try:
+                verify_token(
+                    request.headers.get("Authorization"),
+                    request.headers.get("X-Token"),
+                    allowed_user_types=["ADMIN", "PLATFORM_USER"],
+                )
+            except FastAPIHTTPException as exc:
+                detail = exc.detail
+                if isinstance(detail, dict) and "code" in detail and "message" in detail:
+                    return JSONResponse(status_code=exc.status_code, content=detail)
+                return JSONResponse(
+                    status_code=exc.status_code,
+                    content={"code": exc.status_code, "message": str(detail)},
+                )
+        return await call_next(request)
+
     @app.exception_handler(FastAPIHTTPException)
     async def http_exception_handler(
         request: Request, exc: FastAPIHTTPException
@@ -68,6 +90,35 @@ def create_app() -> FastAPI:
     @app.get("/api/health", tags=["Meta"])
     def health():
         return {"status": "ok", "version": app_config.version}
+
+    # 让 /docs 显示 Authorize 按钮，方便联调时把 admin 签发的 JWT 粘进去
+    def custom_openapi():
+        if app.openapi_schema:
+            return app.openapi_schema
+        schema = get_openapi(
+            title=app.title,
+            version=app.version,
+            description=app.description,
+            routes=app.routes,
+        )
+        schema.setdefault("components", {})["securitySchemes"] = {
+            "BearerAuth": {
+                "type": "http",
+                "scheme": "bearer",
+                "bearerFormat": "JWT",
+                "description": "在 Value 中粘贴 admin 登录返回的 token（无需带 'Bearer ' 前缀）",
+            }
+        }
+        for path, methods in schema.get("paths", {}).items():
+            if path == "/api/health":
+                continue
+            for op in methods.values():
+                if isinstance(op, dict):
+                    op.setdefault("security", [{"BearerAuth": []}])
+        app.openapi_schema = schema
+        return schema
+
+    app.openapi = custom_openapi
 
     @app.on_event("shutdown")
     def _on_shutdown() -> None:

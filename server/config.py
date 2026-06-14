@@ -38,6 +38,9 @@ class AppConfig:
         "KG_PROJECT_ROOT",
         os.path.abspath(os.path.join(os.path.dirname(__file__), os.pardir)),
     )
+    jwt_secret: str = _env("KG_JWT_SECRET", "admin-management-system-hjj-secret")
+    jwt_issuer: str = _env("KG_JWT_ISSUER", "admin-management-system")
+    admin_auth_enabled: bool = _env("KG_ADMIN_AUTH_ENABLED", "1") != "0"
 
 
 mysql_config = MySQLConfig()

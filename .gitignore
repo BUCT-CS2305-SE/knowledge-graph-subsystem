@@ -1,33 +1,42 @@
-# Python
+# ---------- Python ----------
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.egg-info/
+.eggs/
 .pytest_cache/
+.mypy_cache/
+.tox/
 
-# 虚拟环境
+# ---------- 虚拟环境 ----------
 venv/
 .venv/
 env/
 
-# 环境变量
+# ---------- 环境变量（含密钥） ----------
 .env
 server/.env
 
-# 日志 / 状态
+# ---------- 日志 / 状态 ----------
+*.log
 pipeline/pipeline.log
 pipeline/sync_state.json
 data_update/incremental/sync_state.json
 data_update/incremental/delta/
+data_update/enrichment/*.log
 
-# 数据补充缓存（体积大，不建议入库）
+# ---------- 数据补充缓存（体积大，走 rsync 同步而非 git） ----------
 data_update/enrichment/augmented_entities.json
 data_update/enrichment/augmented_entities.csv
-# 图片
+
+# ---------- 图片 ----------
 images/
-# 编辑器
+
+# ---------- 编辑器 / 系统 ----------
 .idea/
 .vscode/
 *.swp
 .DS_Store
+Thumbs.db
+._*
